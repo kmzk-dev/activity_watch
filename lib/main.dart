@@ -16,33 +16,81 @@ void main() {
   runApp(const ActivityWatchApp());
 }
 
+// 色ラベルの定義
+// ユーザーが選択できる色のリスト (名前と色のペア)
+const Map<String, Color> colorLabels = {
+  'デフォルト': Colors.black, // デフォルトの色
+  '赤': Colors.red,
+  '青': Colors.blue,
+  '緑': Colors.green,
+  'オレンジ': Colors.orange,
+  '紫': Colors.purple,
+};
+
 // データモデル (LogEntry, SavedLogSession)
 class LogEntry {
   final DateTime actualSessionStartTime;
   final String startTime;
   final String endTime;
   String memo;
+  Duration? duration;
+  String colorLabelName; // ★ 色ラベル名を格納するプロパティを追加
 
   LogEntry({
     required this.actualSessionStartTime,
     required this.startTime,
     required this.endTime,
     required this.memo,
+    this.duration,
+    this.colorLabelName = 'デフォルト', // ★ デフォルトの色ラベル名を設定
   });
+
+  void _calculateDuration() {
+    try {
+      final startTimeDateTime = DateFormat('HH:mm:ss').parse(startTime);
+      final endTimeDateTime = DateFormat('HH:mm:ss').parse(endTime);
+      duration = endTimeDateTime.difference(startTimeDateTime);
+    } catch (e) {
+      duration = null;
+    }
+  }
 
   Map<String, dynamic> toJson() => {
         'actualSessionStartTime': actualSessionStartTime.toIso8601String(),
         'startTime': startTime,
         'endTime': endTime,
         'memo': memo,
+        'duration': duration?.inMilliseconds,
+        'colorLabelName': colorLabelName, // ★ JSONに色ラベル名を追加
       };
 
-  factory LogEntry.fromJson(Map<String, dynamic> json) => LogEntry(
-        actualSessionStartTime: DateTime.parse(json['actualSessionStartTime'] as String),
-        startTime: json['startTime'] as String,
-        endTime: json['endTime'] as String,
-        memo: json['memo'] as String,
-      );
+  factory LogEntry.fromJson(Map<String, dynamic> json) {
+    final int? milliseconds = json['duration'] as int?;
+    return LogEntry(
+      actualSessionStartTime: DateTime.parse(json['actualSessionStartTime'] as String),
+      startTime: json['startTime'] as String,
+      endTime: json['endTime'] as String,
+      memo: json['memo'] as String,
+      duration: milliseconds != null ? Duration(milliseconds: milliseconds) : null,
+      colorLabelName: json['colorLabelName'] as String? ?? 'デフォルト', // ★ JSONから色ラベル名を読み込み (存在しない場合はデフォルト)
+    );
+  }
+
+  String get elapsedTime {
+    if (duration == null) {
+      return '00:00:00';
+    }
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final hours = duration!.inHours;
+    final minutes = duration!.inMinutes.remainder(60);
+    final seconds = duration!.inSeconds.remainder(60);
+    return '${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}';
+  }
+
+  // ★ 色ラベル名に対応するColorオブジェクトを取得するgetter
+  Color get labelColor {
+    return colorLabels[colorLabelName] ?? Colors.black; // 見つからない場合は黒
+  }
 }
 
 class SavedLogSession {
@@ -140,10 +188,9 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _selectedIndex = 0;
 
-  // ★ 設定画面を直接 IndexedStack で管理しないため、リストから削除
   static const List<Widget> _widgetOptions = <Widget>[
-    StopwatchScreenWidget(), // 計測タブのウィジェット
-    SavedSessionsScreen(),   // 履歴タブのウィジェット
+    StopwatchScreenWidget(),
+    SavedSessionsScreen(),
   ];
 
   void _onItemTapped(int index) {
@@ -158,7 +205,6 @@ class _AppShellState extends State<AppShell> {
       body: Center(
         child: _widgetOptions.elementAt(_selectedIndex),
       ),
-      // ★ フッタータブを「計測」と「履歴」のみに変更
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
@@ -201,6 +247,9 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
   static const String _suggestionsKey = 'comment_suggestions';
   static const String _savedSessionsKey = 'saved_log_sessions';
   DateTime? _lastSuggestionsLoadTime;
+
+  // ★ ログダイアログで選択されている色ラベル名を保持する状態変数
+  String _selectedColorLabelInDialog = colorLabels.keys.first;
 
 
   @override
@@ -286,12 +335,14 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
 
   String _generateCsvData() {
     final StringBuffer csvBuffer = StringBuffer();
-    csvBuffer.writeln('SESSION,START,END,COMMENT');
+    // ★ CSVヘッダーにCOLOR_LABELを追加 (必要であれば)
+    csvBuffer.writeln('SESSION,START,END,COMMENT,ELAPSED,COLOR_LABEL');
     for (int i = _logs.length - 1; i >= 0; i--) {
       final log = _logs[i];
       final memoField = '"${log.memo.replaceAll('"', '""')}"';
       final String formattedActualStartTime = _formatDateTimeForCsv(log.actualSessionStartTime);
-      csvBuffer.writeln('$formattedActualStartTime,${log.startTime},${log.endTime},$memoField');
+      // ★ CSVデータに色ラベル名を追加
+      csvBuffer.writeln('$formattedActualStartTime,${log.startTime},${log.endTime},$memoField,${log.elapsedTime},${log.colorLabelName}');
     }
     return csvBuffer.toString();
   }
@@ -327,142 +378,181 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
 
   Future<void> _showLogDialog(String timeForLogDialog) async {
     _logMemoController.clear();
+    // ★ ダイアログ表示時にデフォルトの色ラベルを選択状態にする
+    _selectedColorLabelInDialog = colorLabels.keys.first;
 
+    // ★ StatefulBuilder を使用してダイアログ内の状態を管理
     await showDialog<bool>(
       context: context,
       barrierDismissible: true,
       builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          contentPadding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 0),
-          titlePadding: EdgeInsets.zero,
-          content: SizedBox(
-            width: MediaQuery.of(dialogContext).size.width * 0.8,
-            child: SingleChildScrollView(
-              child: ListBody(
-                children: <Widget>[
-                  Text('LOGGING TIME: $timeForLogDialog', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-                  Autocomplete<String>(
-                    optionsBuilder: (TextEditingValue textEditingValue) {
-                      final query = textEditingValue.text;
-                      if (query == '') return const Iterable<String>.empty();
-                      final String inputTextHiragana = _katakanaToHiragana(query.toLowerCase());
-                      return _commentSuggestions.where((String option) {
-                        final String optionHiragana = _katakanaToHiragana(option.toLowerCase());
-                        return optionHiragana.contains(inputTextHiragana);
-                      });
-                    },
-                    onSelected: (String selection) {
-                       _logMemoController.text = selection;
-                       _logMemoController.selection = TextSelection.fromPosition(
-                           TextPosition(offset: _logMemoController.text.length));
-                    },
-                    fieldViewBuilder: (BuildContext context,
-                        TextEditingController fieldTextEditingController,
-                        FocusNode fieldFocusNode,
-                        VoidCallback onFieldSubmitted) {
-                      if (fieldTextEditingController.text.isEmpty && _logMemoController.text.isNotEmpty) {
-                           WidgetsBinding.instance.addPostFrameCallback((_){
-                              if(mounted && fieldTextEditingController.text.isEmpty){
-                                 fieldTextEditingController.text = _logMemoController.text;
-                              }
-                           });
-                      }
-                      return TextField(
-                        controller: fieldTextEditingController,
-                        focusNode: fieldFocusNode,
-                        autofocus: true,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                          labelText: 'COMMENT',
-                          hintText: 'Enter your comment here',
-                        ),
-                        maxLines: 1,
-                        keyboardType: TextInputType.text,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.deny(RegExp(r'[\n\r]')),
-                        ],
-                        onChanged: (text) {
-                            _logMemoController.text = text;
+        return StatefulBuilder( // ★ StatefulBuilderを追加
+          builder: (BuildContext context, StateSetter setStateDialog) {
+            return AlertDialog(
+              contentPadding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 0),
+              titlePadding: EdgeInsets.zero,
+              content: SizedBox(
+                width: MediaQuery.of(dialogContext).size.width * 0.8,
+                child: SingleChildScrollView(
+                  child: ListBody(
+                    children: <Widget>[
+                      Text('LOGGING TIME: $timeForLogDialog', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 16),
+                      Autocomplete<String>(
+                        optionsBuilder: (TextEditingValue textEditingValue) {
+                          final query = textEditingValue.text;
+                          if (query == '') return const Iterable<String>.empty();
+                          final String inputTextHiragana = _katakanaToHiragana(query.toLowerCase());
+                          return _commentSuggestions.where((String option) {
+                            final String optionHiragana = _katakanaToHiragana(option.toLowerCase());
+                            return optionHiragana.contains(inputTextHiragana);
+                          });
                         },
-                        onSubmitted: (_){
-                          onFieldSubmitted();
+                        onSelected: (String selection) {
+                           _logMemoController.text = selection;
+                           _logMemoController.selection = TextSelection.fromPosition(
+                               TextPosition(offset: _logMemoController.text.length));
                         },
-                      );
-                    },
-                    optionsViewBuilder: (BuildContext context, AutocompleteOnSelected<String> onSelected, Iterable<String> options) {
-                       return Align(
-                        alignment: Alignment.topLeft,
-                        child: Material(
-                          elevation: 4.0,
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(maxHeight: 200, maxWidth: MediaQuery.of(dialogContext).size.width * 0.8 - 48),
-                            child: ListView.builder(
-                              padding: EdgeInsets.zero,
-                              itemCount: options.length,
-                              itemBuilder: (BuildContext context, int index) {
-                                final String option = options.elementAt(index);
-                                return InkWell(
-                                  onTap: () => onSelected(option),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(16.0),
-                                    child: Text(option),
-                                  ),
-                                );
-                              },
+                        fieldViewBuilder: (BuildContext context,
+                            TextEditingController fieldTextEditingController,
+                            FocusNode fieldFocusNode,
+                            VoidCallback onFieldSubmitted) {
+                          if (fieldTextEditingController.text.isEmpty && _logMemoController.text.isNotEmpty) {
+                               WidgetsBinding.instance.addPostFrameCallback((_){
+                                  if(mounted && fieldTextEditingController.text.isEmpty){
+                                     fieldTextEditingController.text = _logMemoController.text;
+                                  }
+                               });
+                          }
+                          return TextField(
+                            controller: fieldTextEditingController,
+                            focusNode: fieldFocusNode,
+                            autofocus: true,
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              labelText: 'COMMENT',
+                              hintText: 'Enter your comment here',
                             ),
-                          ),
+                            maxLines: 1,
+                            keyboardType: TextInputType.text,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.deny(RegExp(r'[\n\r]')),
+                            ],
+                            onChanged: (text) {
+                                _logMemoController.text = text;
+                            },
+                            onSubmitted: (_){
+                              onFieldSubmitted();
+                            },
+                          );
+                        },
+                        optionsViewBuilder: (BuildContext context, AutocompleteOnSelected<String> onSelected, Iterable<String> options) {
+                           return Align(
+                            alignment: Alignment.topLeft,
+                            child: Material(
+                              elevation: 4.0,
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(maxHeight: 200, maxWidth: MediaQuery.of(dialogContext).size.width * 0.8 - 48),
+                                child: ListView.builder(
+                                  padding: EdgeInsets.zero,
+                                  itemCount: options.length,
+                                  itemBuilder: (BuildContext context, int index) {
+                                    final String option = options.elementAt(index);
+                                    return InkWell(
+                                      onTap: () => onSelected(option),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(16.0),
+                                        child: Text(option),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16), // ★ 色選択UIのためのスペース
+                      // ★ 色選択のためのDropdownButtonを追加
+                      DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(
+                          labelText: '色ラベル',
+                          border: OutlineInputBorder(),
                         ),
+                        value: _selectedColorLabelInDialog,
+                        items: colorLabels.keys.map((String labelName) {
+                          return DropdownMenuItem<String>(
+                            value: labelName,
+                            child: Row(
+                              children: [
+                                Icon(Icons.circle, color: colorLabels[labelName], size: 16),
+                                const SizedBox(width: 8),
+                                Text(labelName),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (String? newValue) {
+                          if (newValue != null) {
+                            setStateDialog(() { // ★ ダイアログの状態を更新
+                              _selectedColorLabelInDialog = newValue;
+                            });
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actionsPadding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+              actions: <Widget>[
+                Tooltip(
+                  message: '終了して記録',
+                  child: IconButton(
+                    icon: const Icon(Icons.stop_circle, color: Colors.redAccent, size: 28),
+                    onPressed: () {
+                      String memo = _logMemoController.text.trim();
+                      if (memo.isEmpty) memo = '(活動終了)';
+                      final String startTime = _logs.isEmpty ? '00:00:00' : _logs.last.endTime;
+                      final newLog = LogEntry(
+                        actualSessionStartTime: _currentActualSessionStartTime!,
+                        startTime: startTime,
+                        endTime: timeForLogDialog,
+                        memo: memo,
+                        colorLabelName: _selectedColorLabelInDialog, // ★ 選択された色ラベルを保存
                       );
+                      newLog._calculateDuration();
+                      if (mounted) setState(() => _logs.add(newLog));
+                      Navigator.of(dialogContext).pop(true);
+                      _stopCounter();
                     },
                   ),
-                ],
-              ),
-            ),
-          ),
-          actionsPadding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
-          actions: <Widget>[
-            Tooltip(
-              message: '終了して記録',
-              child: IconButton(
-                icon: const Icon(Icons.stop_circle, color: Colors.redAccent, size: 28),
-                onPressed: () {
-                  String memo = _logMemoController.text.trim();
-                  if (memo.isEmpty) memo = '(活動終了)';
-                  final String startTime = _logs.isEmpty ? '00:00:00' : _logs.last.endTime;
-                  final newLog = LogEntry(
-                    actualSessionStartTime: _currentActualSessionStartTime!,
-                    startTime: startTime,
-                    endTime: timeForLogDialog,
-                    memo: memo,
-                  );
-                  if (mounted) setState(() => _logs.add(newLog));
-                  Navigator.of(dialogContext).pop(true);
-                  _stopCounter();
-                },
-              ),
-            ),
-            const Spacer(),
-            Tooltip(
-              message: '保存して記録を続ける',
-              child: IconButton(
-                icon: Icon(Icons.edit, color: Theme.of(dialogContext).colorScheme.primary, size: 28),
-                onPressed: () {
-                  String memo = _logMemoController.text.trim();
-                  if (memo.isEmpty) memo = '(ラップを記録)';
-                  final String startTime = _logs.isEmpty ? '00:00:00' : _logs.last.endTime;
-                  final newLog = LogEntry(
-                    actualSessionStartTime: _currentActualSessionStartTime!,
-                    startTime: startTime,
-                    endTime: timeForLogDialog,
-                    memo: memo,
-                  );
-                   if (mounted) setState(() => _logs.add(newLog));
-                  Navigator.of(dialogContext).pop(true);
-                },
-              ),
-            ),
-          ],
+                ),
+                const Spacer(),
+                Tooltip(
+                  message: '保存して記録を続ける',
+                  child: IconButton(
+                    icon: Icon(Icons.edit, color: Theme.of(dialogContext).colorScheme.primary, size: 28),
+                    onPressed: () {
+                      String memo = _logMemoController.text.trim();
+                      if (memo.isEmpty) memo = '(ラップを記録)';
+                      final String startTime = _logs.isEmpty ? '00:00:00' : _logs.last.endTime;
+                      final newLog = LogEntry(
+                        actualSessionStartTime: _currentActualSessionStartTime!,
+                        startTime: startTime,
+                        endTime: timeForLogDialog,
+                        memo: memo,
+                        colorLabelName: _selectedColorLabelInDialog, // ★ 選択された色ラベルを保存
+                      );
+                      newLog._calculateDuration();
+                       if (mounted) setState(() => _logs.add(newLog));
+                      Navigator.of(dialogContext).pop(true);
+                    },
+                  ),
+                ),
+              ],
+            );
+          }
         );
       },
     );
@@ -474,112 +564,156 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
   Future<void> _showEditLogDialog(int logIndex) async {
     final LogEntry currentLog = _logs[logIndex];
     _editLogMemoController.text = currentLog.memo;
+    // ★ 編集ダイアログ表示時に現在の色ラベルを選択状態にする
+    String _selectedColorLabelInEditDialog = currentLog.colorLabelName;
+
 
     await showDialog<bool>(
       context: context,
       barrierDismissible: true,
       builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Edit COMMENT'),
-          contentPadding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 0),
-          content: SizedBox(
-            width: MediaQuery.of(dialogContext).size.width * 0.8,
-            child: Autocomplete<String>(
-              initialValue: TextEditingValue(text: _editLogMemoController.text),
-              optionsBuilder: (TextEditingValue textEditingValue) {
-                final query = textEditingValue.text;
-                if (query == '') return const Iterable<String>.empty();
-                final String inputTextHiragana = _katakanaToHiragana(query.toLowerCase());
-                return _commentSuggestions.where((String option) {
-                  final String optionHiragana = _katakanaToHiragana(option.toLowerCase());
-                  return optionHiragana.contains(inputTextHiragana);
-                });
-              },
-              onSelected: (String selection) {
-                _editLogMemoController.text = selection;
-                _editLogMemoController.selection = TextSelection.fromPosition(
-                    TextPosition(offset: _editLogMemoController.text.length));
-              },
-              fieldViewBuilder: (BuildContext context,
-                  TextEditingController fieldTextEditingController,
-                  FocusNode fieldFocusNode,
-                  VoidCallback onFieldSubmitted) {
-                  if (fieldTextEditingController.text.isEmpty && _editLogMemoController.text.isNotEmpty) {
-                       WidgetsBinding.instance.addPostFrameCallback((_){
-                          if(mounted && fieldTextEditingController.text.isEmpty){
-                             fieldTextEditingController.text = _editLogMemoController.text;
-                          }
-                       });
-                  }
-               return TextField(
-                  controller: fieldTextEditingController,
-                  focusNode: fieldFocusNode,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    labelText: 'NEW COMMENT',
-                  ),
-                  maxLines: 1,
-                  keyboardType: TextInputType.text,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.deny(RegExp(r'[\n\r]')),
-                  ],
-                   onChanged: (text) {
-                       _editLogMemoController.text = text;
-                   },
-                  onSubmitted: (_){
-                    onFieldSubmitted();
-                  },
-               );
-              },
-              optionsViewBuilder: (BuildContext context, AutocompleteOnSelected<String> onSelected, Iterable<String> options) {
-                 return Align(
-                  alignment: Alignment.topLeft,
-                  child: Material(
-                    elevation: 4.0,
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(maxHeight: 200, maxWidth: MediaQuery.of(dialogContext).size.width * 0.8 - 48),
-                      child: ListView.builder(
-                        padding: EdgeInsets.zero,
-                        itemCount: options.length,
-                        itemBuilder: (BuildContext context, int index) {
-                          final String option = options.elementAt(index);
-                          return InkWell(
-                            onTap: () => onSelected(option),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Text(option),
+        // ★ StatefulBuilder を使用してダイアログ内の状態を管理
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setStateDialog) {
+            return AlertDialog(
+              title: const Text('Edit COMMENT'),
+              contentPadding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 0),
+              content: SizedBox(
+                width: MediaQuery.of(dialogContext).size.width * 0.8,
+                child: SingleChildScrollView( // ★ SingleChildScrollViewでラップ
+                  child: Column( // ★ Columnでラップ
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Autocomplete<String>(
+                        initialValue: TextEditingValue(text: _editLogMemoController.text),
+                        optionsBuilder: (TextEditingValue textEditingValue) {
+                          final query = textEditingValue.text;
+                          if (query == '') return const Iterable<String>.empty();
+                          final String inputTextHiragana = _katakanaToHiragana(query.toLowerCase());
+                          return _commentSuggestions.where((String option) {
+                            final String optionHiragana = _katakanaToHiragana(option.toLowerCase());
+                            return optionHiragana.contains(inputTextHiragana);
+                          });
+                        },
+                        onSelected: (String selection) {
+                          _editLogMemoController.text = selection;
+                          _editLogMemoController.selection = TextSelection.fromPosition(
+                              TextPosition(offset: _editLogMemoController.text.length));
+                        },
+                        fieldViewBuilder: (BuildContext context,
+                            TextEditingController fieldTextEditingController,
+                            FocusNode fieldFocusNode,
+                            VoidCallback onFieldSubmitted) {
+                            if (fieldTextEditingController.text.isEmpty && _editLogMemoController.text.isNotEmpty) {
+                                 WidgetsBinding.instance.addPostFrameCallback((_){
+                                    if(mounted && fieldTextEditingController.text.isEmpty){
+                                       fieldTextEditingController.text = _editLogMemoController.text;
+                                    }
+                                 });
+                            }
+                         return TextField(
+                            controller: fieldTextEditingController,
+                            focusNode: fieldFocusNode,
+                            autofocus: true,
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              labelText: 'NEW COMMENT',
+                            ),
+                            maxLines: 1,
+                            keyboardType: TextInputType.text,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.deny(RegExp(r'[\n\r]')),
+                            ],
+                             onChanged: (text) {
+                                 _editLogMemoController.text = text;
+                             },
+                            onSubmitted: (_){
+                              onFieldSubmitted();
+                            },
+                         );
+                        },
+                        optionsViewBuilder: (BuildContext context, AutocompleteOnSelected<String> onSelected, Iterable<String> options) {
+                           return Align(
+                            alignment: Alignment.topLeft,
+                            child: Material(
+                              elevation: 4.0,
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(maxHeight: 200, maxWidth: MediaQuery.of(dialogContext).size.width * 0.8 - 48),
+                                child: ListView.builder(
+                                  padding: EdgeInsets.zero,
+                                  itemCount: options.length,
+                                  itemBuilder: (BuildContext context, int index) {
+                                    final String option = options.elementAt(index);
+                                    return InkWell(
+                                      onTap: () => onSelected(option),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(16.0),
+                                        child: Text(option),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
                             ),
                           );
                         },
                       ),
-                    ),
+                      const SizedBox(height: 16), // ★ 色選択UIのためのスペース
+                      // ★ 色選択のためのDropdownButtonを追加
+                      DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(
+                          labelText: '色ラベル',
+                          border: OutlineInputBorder(),
+                        ),
+                        value: _selectedColorLabelInEditDialog,
+                        items: colorLabels.keys.map((String labelName) {
+                          return DropdownMenuItem<String>(
+                            value: labelName,
+                            child: Row(
+                              children: [
+                                Icon(Icons.circle, color: colorLabels[labelName], size: 16),
+                                const SizedBox(width: 8),
+                                Text(labelName),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (String? newValue) {
+                          if (newValue != null) {
+                            setStateDialog(() { // ★ ダイアログの状態を更新
+                              _selectedColorLabelInEditDialog = newValue;
+                            });
+                          }
+                        },
+                      ),
+                    ],
                   ),
-                );
-              },
-            ),
-          ),
-          actionsPadding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Dissmiss'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop(false);
-              },
-            ),
-            ElevatedButton(
-              child: const Text('Save'),
-              onPressed: () {
-                final String newMemo = _editLogMemoController.text.trim();
-                if (mounted) {
-                  setState(() {
-                    _logs[logIndex].memo = newMemo;
-                  });
-                }
-                Navigator.of(dialogContext).pop(true);
-              },
-            ),
-          ],
+                ),
+              ),
+              actionsPadding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+              actions: <Widget>[
+                TextButton(
+                  child: const Text('Dissmiss'),
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop(false);
+                  },
+                ),
+                ElevatedButton(
+                  child: const Text('Save'),
+                  onPressed: () {
+                    final String newMemo = _editLogMemoController.text.trim();
+                    if (mounted) {
+                      setState(() {
+                        _logs[logIndex].memo = newMemo;
+                        _logs[logIndex].colorLabelName = _selectedColorLabelInEditDialog; // ★ 色ラベルを更新
+                      });
+                    }
+                    Navigator.of(dialogContext).pop(true);
+                  },
+                ),
+              ],
+            );
+          }
         );
       },
     );
@@ -713,8 +847,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('「$title」としてセッションを保存しました。')),
-    );
-  }
+    );}
 
 
   Widget _buildLogTableHeader(BuildContext context) {
@@ -741,6 +874,10 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
           Expanded(
             flex: 4,
             child: Text('COMMENT', style: headingTextStyle),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text('ELAPSED', style: headingTextStyle),
           ),
           const SizedBox(width: 48),
         ],
@@ -769,8 +906,13 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                 log.memo,
                 overflow: TextOverflow.ellipsis,
                 maxLines: 2,
+                style: TextStyle(color: log.labelColor), // ★ コメントの文字色を色ラベルに応じて変更
               ),
             ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(log.elapsedTime),
           ),
           SizedBox(
             width: 48,
@@ -820,7 +962,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
           loadSuggestionsFromPrefs();
         }
       },
-      // ★ 計測画面にAppBarを追加し、設定アイコンを配置
       child: Scaffold(
         appBar: AppBar(
           actions: <Widget>[
@@ -828,7 +969,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
               icon: const Icon(Icons.settings),
               tooltip: '設定',
               onPressed: () {
-                // 設定画面に遷移
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const SettingsScreen()),
