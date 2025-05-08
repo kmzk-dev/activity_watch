@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:visibility_detector/visibility_detector.dart';
-import 'models/saved_log_session.dart';
+import '../models/saved_log_session.dart';
 import 'session_details_screen.dart';
 class SavedSessionsScreen extends StatefulWidget {
   const SavedSessionsScreen({super.key});
