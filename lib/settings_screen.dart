@@ -1,3 +1,4 @@
+// settings_screen.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -50,6 +51,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       });
       _saveSuggestions();
     } else if (newSuggestion.isNotEmpty && _suggestions.contains(newSuggestion)) {
+      if (!mounted) return; // mounted check
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('このサジェスチョンは既に追加されています。')),
       );
@@ -73,7 +75,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: const Text('サジェスチョンを編集'),
           content: TextField(
             controller: _suggestionEditController,
-            autofocus: true,
+            autofocus: true, // This autofocus can remain as it's within a dialog
             decoration: const InputDecoration(hintText: "新しいサジェスチョン"),
           ),
           actions: <Widget>[
@@ -113,11 +115,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // ★ 2. AppBarを削除
-      // appBar: AppBar(
-      //   title: const Text('サジェスト設定'),
-      // ),
-      body: SafeArea( // ★ body全体をSafeAreaでラップ
+      // ★ 設定画面にAppBarを追加
+      appBar: AppBar(
+        title: const Text('サジェスト設定'),
+      ),
+      body: SafeArea(
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : Padding(
@@ -179,6 +181,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
       ),
+      // ★ 設定画面ではフッタータブを表示しないため、bottomNavigationBar は指定しない
     );
   }
 }

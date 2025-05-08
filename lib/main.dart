@@ -1,11 +1,11 @@
 // main.dart
-import 'dart:async'; // ★ Timerクラスを使用するために dart:async をインポート
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-//import 'package:intl/intl.dart';
+import 'package:intl/intl.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import 'settings_screen.dart';
@@ -101,9 +101,8 @@ class ActivityWatchApp extends StatelessWidget {
     return MaterialApp(
       theme: ThemeData(
         primarySwatch: Colors.blue,
-        // Use colorScheme for modern Flutter theming
         colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.blue).copyWith(
-          secondary: Colors.blueAccent, // Example secondary color
+          secondary: Colors.blueAccent,
         ),
         dialogTheme: DialogTheme(
           shape: RoundedRectangleBorder(
@@ -141,17 +140,11 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _selectedIndex = 0;
 
-  late final List<Widget> _widgetOptions;
-
-  @override
-  void initState() {
-    super.initState();
-    _widgetOptions = <Widget>[
-      const StopwatchScreenWidget(),
-      const SavedSessionsScreen(),
-      const SettingsScreen(),
-    ];
-  }
+  // ★ 設定画面を直接 IndexedStack で管理しないため、リストから削除
+  static const List<Widget> _widgetOptions = <Widget>[
+    StopwatchScreenWidget(), // 計測タブのウィジェット
+    SavedSessionsScreen(),   // 履歴タブのウィジェット
+  ];
 
   void _onItemTapped(int index) {
     setState(() {
@@ -162,10 +155,10 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _widgetOptions,
+      body: Center(
+        child: _widgetOptions.elementAt(_selectedIndex),
       ),
+      // ★ フッタータブを「計測」と「履歴」のみに変更
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
@@ -175,10 +168,6 @@ class _AppShellState extends State<AppShell> {
           BottomNavigationBarItem(
             icon: Icon(Icons.history),
             label: '履歴',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: '設定',
           ),
         ],
         currentIndex: _selectedIndex,
@@ -197,7 +186,7 @@ class StopwatchScreenWidget extends StatefulWidget {
 
 class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
   final Stopwatch _stopwatch = Stopwatch();
-  Timer? _timer; // Timer is defined in dart:async
+  Timer? _timer;
   bool _isRunning = false;
   String _elapsedTime = '00:00:00:00';
   final TextEditingController _logMemoController = TextEditingController();
@@ -205,7 +194,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
   final TextEditingController _sessionTitleController = TextEditingController();
   final TextEditingController _sessionCommentController = TextEditingController();
 
-  List<LogEntry> _logs = []; // This field is modified, so it cannot be final.
+  List<LogEntry> _logs = [];
   DateTime? _currentActualSessionStartTime;
 
   List<String> _commentSuggestions = [];
@@ -217,10 +206,8 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
   @override
   void initState() {
     super.initState();
-    // VisibilityDetectorが担当
   }
 
-  // State破棄時にコントローラーも破棄
   @override
   void dispose() {
     _timer?.cancel();
@@ -264,7 +251,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
         _currentActualSessionStartTime = DateTime.now();
 
         _stopwatch.start();
-        _timer = Timer.periodic(const Duration(milliseconds: 10), (timer) { // Timer usage
+        _timer = Timer.periodic(const Duration(milliseconds: 10), (timer) {
           if (!_stopwatch.isRunning) {
             timer.cancel();
             return;
@@ -338,13 +325,9 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
     return '${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}';
   }
 
-  // ラップ記録ダイアログ
   Future<void> _showLogDialog(String timeForLogDialog) async {
     _logMemoController.clear();
 
-    // ★ unused_local_variable: dialogResult is not used, so we can remove it or use it.
-    // For now, we'll keep the await and let the dialog close itself.
-    // If we needed to react to how the dialog was closed, we would use the result.
     await showDialog<bool>(
       context: context,
       barrierDismissible: true,
@@ -403,9 +386,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                             _logMemoController.text = text;
                         },
                         onSubmitted: (_){
-                          onFieldSubmitted(); // Important for Autocomplete
-                          // Decide if we want to auto-submit the dialog here or rely on buttons
-                          // For now, rely on buttons.
+                          onFieldSubmitted();
                         },
                       );
                     },
@@ -490,12 +471,10 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
     FocusScope.of(context).unfocus();
   }
 
-  // ラップメモ編集ダイアログ
   Future<void> _showEditLogDialog(int logIndex) async {
     final LogEntry currentLog = _logs[logIndex];
     _editLogMemoController.text = currentLog.memo;
 
-    // ★ unused_local_variable: dialogResult is not used.
     await showDialog<bool>(
       context: context,
       barrierDismissible: true,
@@ -550,7 +529,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                    },
                   onSubmitted: (_){
                     onFieldSubmitted();
-                    // Decide if we want to auto-submit the dialog here or rely on buttons
                   },
                );
               },
@@ -610,7 +588,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
     FocusScope.of(context).unfocus();
   }
 
-  // セッション保存ダイアログ
   Future<void> _showSaveSessionDialog() async {
     if (_logs.isEmpty) {
       if (!mounted) return;
@@ -723,7 +700,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
             .map((jsonItem) => SavedLogSession.fromJson(jsonItem as Map<String, dynamic>))
             .toList();
       } catch (e) {
-        // print('Error decoding saved sessions: $e'); // Consider using a logger
         savedSessions = [];
       }
     }
@@ -844,7 +820,23 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
           loadSuggestionsFromPrefs();
         }
       },
+      // ★ 計測画面にAppBarを追加し、設定アイコンを配置
       child: Scaffold(
+        appBar: AppBar(
+          actions: <Widget>[
+            IconButton(
+              icon: const Icon(Icons.settings),
+              tooltip: '設定',
+              onPressed: () {
+                // 設定画面に遷移
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                );
+              },
+            ),
+          ],
+        ),
         body: SafeArea(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
