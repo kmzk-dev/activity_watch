@@ -3,11 +3,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
-import 'package:visibility_detector/visibility_detector.dart'; // VisibilityDetectorをインポート
-
-import 'main.dart'; // LogEntry, SavedLogSession モデルのため
-import 'session_details_screen.dart'; // 詳細画面のため
-
+import 'package:visibility_detector/visibility_detector.dart';
+import 'models/saved_log_session.dart';
+import 'session_details_screen.dart';
 class SavedSessionsScreen extends StatefulWidget {
   const SavedSessionsScreen({super.key});
 
@@ -26,8 +24,6 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
   @override
   void initState() {
     super.initState();
-    // initStateでの初回ロードはVisibilityDetectorに任せることもできるが、残しておく
-    // _loadSavedSessions();
   }
 
   Future<void> _loadSavedSessions({bool force = false}) async {
@@ -36,7 +32,7 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
     }
 
     if (!mounted) return;
-    if (!_isLoading) { // setState should only be called if _isLoading is changing
+    if (!_isLoading) { 
       setState(() {
         _isLoading = true;
       });
@@ -60,8 +56,6 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
             .toList();
         loadedSessions.sort((a, b) => b.saveDate.compareTo(a.saveDate));
       } catch (e) {
-        // ★ avoid_print: Consider using a logger. Commented out for now.
-        // print('Error decoding saved sessions on list screen: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('保存済みセッションの読み込みに失敗しました。')),
@@ -122,8 +116,6 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
          ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('セッションを削除しました。')),
         );
-        // Reload or set isLoading to false after operation
-        // To reflect changes immediately, we might want to call _loadSavedSessions or simply:
         setState(() {
           _isLoading = false; 
         });
@@ -144,7 +136,6 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          // title: const Text('保存済みログセッション'), // タイトル削除済み
         ),
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())
@@ -185,17 +176,13 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
                             onPressed: () => _deleteSession(session.id),
                           ),
                           onTap: () async {
-                            // ★ unused_local_variable: `result` is not used.
-                            // final result = await Navigator.push(
-                            await Navigator.push( // Removed `result`
+                            await Navigator.push( 
+                              
                               context,
                               MaterialPageRoute(
                                 builder: (context) => SessionDetailsScreen(session: session),
                               ),
                             );
-                            // ★ use_build_context_synchronously: Check mounted if context is used after await.
-                            // No context use here, so no check needed for this specific line.
-                            // VisibilityDetector will handle reload.
                           },
                         ),
                       );

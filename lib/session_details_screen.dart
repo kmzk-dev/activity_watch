@@ -3,7 +3,9 @@ import 'dart:convert'; // JSON処理のため
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // SharedPreferencesのため
-import 'main.dart'; // LogEntry, SavedLogSession モデルのため
+import 'models/log_entry.dart';
+import 'models/saved_log_session.dart';
+
 
 class SessionDetailsScreen extends StatefulWidget {
   final SavedLogSession session;

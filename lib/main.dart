@@ -1,144 +1,26 @@
 // main.dart
 import 'dart:async';
-import 'dart:convert';
+import 'dart:convert'; // ★ _saveCurrentSession で jsonEncode/Decode を使うため必要
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:intl/intl.dart';
+// import 'package:intl/intl.dart'; // 不要になったため削除
 import 'package:visibility_detector/visibility_detector.dart';
 
+import 'constants/color_constants.dart';
+import 'models/log_entry.dart';
+import 'models/saved_log_session.dart'; // ★ SavedLogSession クラスをインポート
+
 import 'settings_screen.dart';
-import 'saved_sessions_screen.dart';
+import 'saved_sessions_screen.dart'; // SavedSessionsScreen で SavedLogSession を使う可能性
 
 // アプリケーションのメイン関数
 void main() {
   runApp(const ActivityWatchApp());
 }
 
-// 色ラベルの定義
-// ユーザーが選択できる色のリスト (名前と色のペア)
-const Map<String, Color> colorLabels = {
-  'デフォルト': Colors.black, // デフォルトの色
-  '赤': Colors.red,
-  '青': Colors.blue,
-  '緑': Colors.green,
-  'オレンジ': Colors.orange,
-  '紫': Colors.purple,
-};
-
-// データモデル (LogEntry, SavedLogSession)
-class LogEntry {
-  final DateTime actualSessionStartTime;
-  final String startTime;
-  final String endTime;
-  String memo;
-  Duration? duration;
-  String colorLabelName; // ★ 色ラベル名を格納するプロパティを追加
-
-  LogEntry({
-    required this.actualSessionStartTime,
-    required this.startTime,
-    required this.endTime,
-    required this.memo,
-    this.duration,
-    this.colorLabelName = 'デフォルト', // ★ デフォルトの色ラベル名を設定
-  });
-
-  void _calculateDuration() {
-    try {
-      final startTimeDateTime = DateFormat('HH:mm:ss').parse(startTime);
-      final endTimeDateTime = DateFormat('HH:mm:ss').parse(endTime);
-      duration = endTimeDateTime.difference(startTimeDateTime);
-    } catch (e) {
-      duration = null;
-    }
-  }
-
-  Map<String, dynamic> toJson() => {
-        'actualSessionStartTime': actualSessionStartTime.toIso8601String(),
-        'startTime': startTime,
-        'endTime': endTime,
-        'memo': memo,
-        'duration': duration?.inMilliseconds,
-        'colorLabelName': colorLabelName, // ★ JSONに色ラベル名を追加
-      };
-
-  factory LogEntry.fromJson(Map<String, dynamic> json) {
-    final int? milliseconds = json['duration'] as int?;
-    return LogEntry(
-      actualSessionStartTime: DateTime.parse(json['actualSessionStartTime'] as String),
-      startTime: json['startTime'] as String,
-      endTime: json['endTime'] as String,
-      memo: json['memo'] as String,
-      duration: milliseconds != null ? Duration(milliseconds: milliseconds) : null,
-      colorLabelName: json['colorLabelName'] as String? ?? 'デフォルト', // ★ JSONから色ラベル名を読み込み (存在しない場合はデフォルト)
-    );
-  }
-
-  String get elapsedTime {
-    if (duration == null) {
-      return '00:00:00';
-    }
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    final hours = duration!.inHours;
-    final minutes = duration!.inMinutes.remainder(60);
-    final seconds = duration!.inSeconds.remainder(60);
-    return '${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}';
-  }
-
-  // ★ 色ラベル名に対応するColorオブジェクトを取得するgetter
-  Color get labelColor {
-    return colorLabels[colorLabelName] ?? Colors.black; // 見つからない場合は黒
-  }
-}
-
-class SavedLogSession {
-  final String id;
-  final String title;
-  final String? sessionComment;
-  final DateTime saveDate;
-  final List<LogEntry> logEntries;
-
-  SavedLogSession({
-    required this.id,
-    required this.title,
-    this.sessionComment,
-    required this.saveDate,
-    required this.logEntries,
-  });
-
-  SavedLogSession copyWith({
-    String? title,
-    String? sessionComment,
-  }) {
-    return SavedLogSession(
-      id: id,
-      title: title ?? this.title,
-      sessionComment: sessionComment ?? this.sessionComment,
-      saveDate: saveDate,
-      logEntries: logEntries,
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'sessionComment': sessionComment,
-        'saveDate': saveDate.toIso8601String(),
-        'logEntries': logEntries.map((log) => log.toJson()).toList(),
-      };
-
-  factory SavedLogSession.fromJson(Map<String, dynamic> json) => SavedLogSession(
-        id: json['id'] as String,
-        title: json['title'] as String,
-        sessionComment: json['sessionComment'] as String?,
-        saveDate: DateTime.parse(json['saveDate'] as String),
-        logEntries: (json['logEntries'] as List<dynamic>)
-            .map((logJson) => LogEntry.fromJson(logJson as Map<String, dynamic>))
-            .toList(),
-      );
-}
+// SavedLogSession クラスの定義は models/saved_log_session.dart に移動しました。
 
 
 class ActivityWatchApp extends StatelessWidget {
@@ -190,7 +72,7 @@ class _AppShellState extends State<AppShell> {
 
   static const List<Widget> _widgetOptions = <Widget>[
     StopwatchScreenWidget(),
-    SavedSessionsScreen(),
+    SavedSessionsScreen(), // SavedLogSession を使用する可能性あり
   ];
 
   void _onItemTapped(int index) {
@@ -240,7 +122,8 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
   final TextEditingController _sessionTitleController = TextEditingController();
   final TextEditingController _sessionCommentController = TextEditingController();
 
-  List<LogEntry> _logs = [];
+  // ★ final を追加
+  final List<LogEntry> _logs = [];
   DateTime? _currentActualSessionStartTime;
 
   List<String> _commentSuggestions = [];
@@ -248,7 +131,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
   static const String _savedSessionsKey = 'saved_log_sessions';
   DateTime? _lastSuggestionsLoadTime;
 
-  // ★ ログダイアログで選択されている色ラベル名を保持する状態変数
   String _selectedColorLabelInDialog = colorLabels.keys.first;
 
 
@@ -270,7 +152,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
 
 
   Future<void> loadSuggestionsFromPrefs({bool force = false}) async {
-     if (!force && _lastSuggestionsLoadTime != null && DateTime.now().difference(_lastSuggestionsLoadTime!) < const Duration(seconds: 1)) {
+      if (!force && _lastSuggestionsLoadTime != null && DateTime.now().difference(_lastSuggestionsLoadTime!) < const Duration(seconds: 1)) {
       return;
     }
     final SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -292,7 +174,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
       if (_isRunning) {
         _showLogDialog(_formatLogTime(_stopwatch.elapsed));
       } else {
-        _logs.clear();
+        _logs.clear(); // final なリストでも clear() は可能
         _stopwatch.stop();
         _stopwatch.reset();
         _timer?.cancel();
@@ -335,13 +217,11 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
 
   String _generateCsvData() {
     final StringBuffer csvBuffer = StringBuffer();
-    // ★ CSVヘッダーにCOLOR_LABELを追加 (必要であれば)
     csvBuffer.writeln('SESSION,START,END,COMMENT,ELAPSED,COLOR_LABEL');
     for (int i = _logs.length - 1; i >= 0; i--) {
       final log = _logs[i];
       final memoField = '"${log.memo.replaceAll('"', '""')}"';
       final String formattedActualStartTime = _formatDateTimeForCsv(log.actualSessionStartTime);
-      // ★ CSVデータに色ラベル名を追加
       csvBuffer.writeln('$formattedActualStartTime,${log.startTime},${log.endTime},$memoField,${log.elapsedTime},${log.colorLabelName}');
     }
     return csvBuffer.toString();
@@ -378,15 +258,13 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
 
   Future<void> _showLogDialog(String timeForLogDialog) async {
     _logMemoController.clear();
-    // ★ ダイアログ表示時にデフォルトの色ラベルを選択状態にする
     _selectedColorLabelInDialog = colorLabels.keys.first;
 
-    // ★ StatefulBuilder を使用してダイアログ内の状態を管理
     await showDialog<bool>(
       context: context,
       barrierDismissible: true,
       builder: (BuildContext dialogContext) {
-        return StatefulBuilder( // ★ StatefulBuilderを追加
+        return StatefulBuilder( 
           builder: (BuildContext context, StateSetter setStateDialog) {
             return AlertDialog(
               contentPadding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 0),
@@ -409,9 +287,9 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                           });
                         },
                         onSelected: (String selection) {
-                           _logMemoController.text = selection;
-                           _logMemoController.selection = TextSelection.fromPosition(
-                               TextPosition(offset: _logMemoController.text.length));
+                            _logMemoController.text = selection;
+                            _logMemoController.selection = TextSelection.fromPosition(
+                                TextPosition(offset: _logMemoController.text.length));
                         },
                         fieldViewBuilder: (BuildContext context,
                             TextEditingController fieldTextEditingController,
@@ -420,9 +298,9 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                           if (fieldTextEditingController.text.isEmpty && _logMemoController.text.isNotEmpty) {
                                WidgetsBinding.instance.addPostFrameCallback((_){
                                   if(mounted && fieldTextEditingController.text.isEmpty){
-                                     fieldTextEditingController.text = _logMemoController.text;
+                                      fieldTextEditingController.text = _logMemoController.text;
                                   }
-                               });
+                                });
                           }
                           return TextField(
                             controller: fieldTextEditingController,
@@ -447,33 +325,32 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                           );
                         },
                         optionsViewBuilder: (BuildContext context, AutocompleteOnSelected<String> onSelected, Iterable<String> options) {
-                           return Align(
-                            alignment: Alignment.topLeft,
-                            child: Material(
-                              elevation: 4.0,
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(maxHeight: 200, maxWidth: MediaQuery.of(dialogContext).size.width * 0.8 - 48),
-                                child: ListView.builder(
-                                  padding: EdgeInsets.zero,
-                                  itemCount: options.length,
-                                  itemBuilder: (BuildContext context, int index) {
-                                    final String option = options.elementAt(index);
-                                    return InkWell(
-                                      onTap: () => onSelected(option),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(16.0),
-                                        child: Text(option),
-                                      ),
-                                    );
-                                  },
+                            return Align(
+                              alignment: Alignment.topLeft,
+                              child: Material(
+                                elevation: 4.0,
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(maxHeight: 200, maxWidth: MediaQuery.of(dialogContext).size.width * 0.8 - 48),
+                                  child: ListView.builder(
+                                    padding: EdgeInsets.zero,
+                                    itemCount: options.length,
+                                    itemBuilder: (BuildContext context, int index) {
+                                      final String option = options.elementAt(index);
+                                      return InkWell(
+                                        onTap: () => onSelected(option),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(16.0),
+                                          child: Text(option),
+                                        ),
+                                      );
+                                    },
+                                  ),
                                 ),
                               ),
-                            ),
-                          );
+                            );
                         },
                       ),
-                      const SizedBox(height: 16), // ★ 色選択UIのためのスペース
-                      // ★ 色選択のためのDropdownButtonを追加
+                      const SizedBox(height: 16), 
                       DropdownButtonFormField<String>(
                         decoration: const InputDecoration(
                           labelText: '色ラベル',
@@ -494,7 +371,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                         }).toList(),
                         onChanged: (String? newValue) {
                           if (newValue != null) {
-                            setStateDialog(() { // ★ ダイアログの状態を更新
+                            setStateDialog(() { 
                               _selectedColorLabelInDialog = newValue;
                             });
                           }
@@ -519,9 +396,9 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                         startTime: startTime,
                         endTime: timeForLogDialog,
                         memo: memo,
-                        colorLabelName: _selectedColorLabelInDialog, // ★ 選択された色ラベルを保存
+                        colorLabelName: _selectedColorLabelInDialog,
                       );
-                      newLog._calculateDuration();
+                      newLog.calculateDuration();
                       if (mounted) setState(() => _logs.add(newLog));
                       Navigator.of(dialogContext).pop(true);
                       _stopCounter();
@@ -542,10 +419,10 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                         startTime: startTime,
                         endTime: timeForLogDialog,
                         memo: memo,
-                        colorLabelName: _selectedColorLabelInDialog, // ★ 選択された色ラベルを保存
+                        colorLabelName: _selectedColorLabelInDialog,
                       );
-                      newLog._calculateDuration();
-                       if (mounted) setState(() => _logs.add(newLog));
+                      newLog.calculateDuration();
+                        if (mounted) setState(() => _logs.add(newLog));
                       Navigator.of(dialogContext).pop(true);
                     },
                   ),
@@ -564,15 +441,14 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
   Future<void> _showEditLogDialog(int logIndex) async {
     final LogEntry currentLog = _logs[logIndex];
     _editLogMemoController.text = currentLog.memo;
-    // ★ 編集ダイアログ表示時に現在の色ラベルを選択状態にする
-    String _selectedColorLabelInEditDialog = currentLog.colorLabelName;
+    // ★ アンダースコアを削除
+    String selectedColorLabelInEditDialog = currentLog.colorLabelName;
 
 
     await showDialog<bool>(
       context: context,
       barrierDismissible: true,
       builder: (BuildContext dialogContext) {
-        // ★ StatefulBuilder を使用してダイアログ内の状態を管理
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setStateDialog) {
             return AlertDialog(
@@ -580,8 +456,8 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
               contentPadding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 0),
               content: SizedBox(
                 width: MediaQuery.of(dialogContext).size.width * 0.8,
-                child: SingleChildScrollView( // ★ SingleChildScrollViewでラップ
-                  child: Column( // ★ Columnでラップ
+                child: SingleChildScrollView( 
+                  child: Column( 
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Autocomplete<String>(
@@ -598,20 +474,20 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                         onSelected: (String selection) {
                           _editLogMemoController.text = selection;
                           _editLogMemoController.selection = TextSelection.fromPosition(
-                              TextPosition(offset: _editLogMemoController.text.length));
+                                TextPosition(offset: _editLogMemoController.text.length));
                         },
                         fieldViewBuilder: (BuildContext context,
                             TextEditingController fieldTextEditingController,
                             FocusNode fieldFocusNode,
                             VoidCallback onFieldSubmitted) {
-                            if (fieldTextEditingController.text.isEmpty && _editLogMemoController.text.isNotEmpty) {
-                                 WidgetsBinding.instance.addPostFrameCallback((_){
-                                    if(mounted && fieldTextEditingController.text.isEmpty){
-                                       fieldTextEditingController.text = _editLogMemoController.text;
-                                    }
-                                 });
-                            }
-                         return TextField(
+                              if (fieldTextEditingController.text.isEmpty && _editLogMemoController.text.isNotEmpty) {
+                                   WidgetsBinding.instance.addPostFrameCallback((_){
+                                      if(mounted && fieldTextEditingController.text.isEmpty){
+                                          fieldTextEditingController.text = _editLogMemoController.text;
+                                      }
+                                   });
+                              }
+                          return TextField(
                             controller: fieldTextEditingController,
                             focusNode: fieldFocusNode,
                             autofocus: true,
@@ -624,48 +500,48 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                             inputFormatters: [
                               FilteringTextInputFormatter.deny(RegExp(r'[\n\r]')),
                             ],
-                             onChanged: (text) {
-                                 _editLogMemoController.text = text;
-                             },
+                              onChanged: (text) {
+                                  _editLogMemoController.text = text;
+                              },
                             onSubmitted: (_){
                               onFieldSubmitted();
                             },
-                         );
-                        },
-                        optionsViewBuilder: (BuildContext context, AutocompleteOnSelected<String> onSelected, Iterable<String> options) {
-                           return Align(
-                            alignment: Alignment.topLeft,
-                            child: Material(
-                              elevation: 4.0,
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(maxHeight: 200, maxWidth: MediaQuery.of(dialogContext).size.width * 0.8 - 48),
-                                child: ListView.builder(
-                                  padding: EdgeInsets.zero,
-                                  itemCount: options.length,
-                                  itemBuilder: (BuildContext context, int index) {
-                                    final String option = options.elementAt(index);
-                                    return InkWell(
-                                      onTap: () => onSelected(option),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(16.0),
-                                        child: Text(option),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ),
                           );
                         },
+                        optionsViewBuilder: (BuildContext context, AutocompleteOnSelected<String> onSelected, Iterable<String> options) {
+                            return Align(
+                              alignment: Alignment.topLeft,
+                              child: Material(
+                                elevation: 4.0,
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(maxHeight: 200, maxWidth: MediaQuery.of(dialogContext).size.width * 0.8 - 48),
+                                  child: ListView.builder(
+                                    padding: EdgeInsets.zero,
+                                    itemCount: options.length,
+                                    itemBuilder: (BuildContext context, int index) {
+                                      final String option = options.elementAt(index);
+                                      return InkWell(
+                                        onTap: () => onSelected(option),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(16.0),
+                                          child: Text(option),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                            );
+                        },
                       ),
-                      const SizedBox(height: 16), // ★ 色選択UIのためのスペース
-                      // ★ 色選択のためのDropdownButtonを追加
+                      const SizedBox(height: 16), 
                       DropdownButtonFormField<String>(
                         decoration: const InputDecoration(
                           labelText: '色ラベル',
                           border: OutlineInputBorder(),
                         ),
-                        value: _selectedColorLabelInEditDialog,
+                        // ★ アンダースコアを削除した変数を使用
+                        value: selectedColorLabelInEditDialog,
                         items: colorLabels.keys.map((String labelName) {
                           return DropdownMenuItem<String>(
                             value: labelName,
@@ -680,8 +556,9 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                         }).toList(),
                         onChanged: (String? newValue) {
                           if (newValue != null) {
-                            setStateDialog(() { // ★ ダイアログの状態を更新
-                              _selectedColorLabelInEditDialog = newValue;
+                            setStateDialog(() { 
+                              // ★ アンダースコアを削除した変数を使用
+                              selectedColorLabelInEditDialog = newValue;
                             });
                           }
                         },
@@ -705,7 +582,8 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                     if (mounted) {
                       setState(() {
                         _logs[logIndex].memo = newMemo;
-                        _logs[logIndex].colorLabelName = _selectedColorLabelInEditDialog; // ★ 色ラベルを更新
+                        // ★ アンダースコアを削除した変数を使用
+                        _logs[logIndex].colorLabelName = selectedColorLabelInEditDialog; 
                       });
                     }
                     Navigator.of(dialogContext).pop(true);
@@ -731,8 +609,8 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
       return;
     }
     if (_isRunning) {
-       if (!mounted) return;
-       ScaffoldMessenger.of(context).showSnackBar(
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('まずストップウォッチを停止してください。')),
       );
       return;
@@ -758,7 +636,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                     labelText: "タイトル",
                     hintText: "セッションのタイトルを入力"
                   ),
-                   textInputAction: TextInputAction.next,
+                    textInputAction: TextInputAction.next,
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -787,10 +665,10 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
               child: const Text('保存'),
               onPressed: () {
                 if (_sessionTitleController.text.trim().isEmpty) {
-                   ScaffoldMessenger.of(dialogContext).showSnackBar(
-                     const SnackBar(content: Text('タイトルは必須です。')),
-                   );
-                   return;
+                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                      const SnackBar(content: Text('タイトルは必須です。')),
+                    );
+                    return;
                 }
                 Navigator.of(dialogContext).pop({
                   'title': _sessionTitleController.text.trim(),
@@ -834,7 +712,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
             .map((jsonItem) => SavedLogSession.fromJson(jsonItem as Map<String, dynamic>))
             .toList();
       } catch (e) {
-        savedSessions = [];
+        savedSessions = []; 
       }
     }
     
@@ -906,7 +784,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                 log.memo,
                 overflow: TextOverflow.ellipsis,
                 maxLines: 2,
-                style: TextStyle(color: log.labelColor), // ★ コメントの文字色を色ラベルに応じて変更
+                style: TextStyle(color: log.labelColor), 
               ),
             ),
           ),
