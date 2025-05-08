@@ -1,21 +1,26 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Clipboardのために必要
+import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // ★追加: shared_preferencesをインポート
-import 'settings_screen.dart'; 
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
+import 'package:visibility_detector/visibility_detector.dart';
+
+import 'settings_screen.dart';
+import 'saved_sessions_screen.dart';
 
 // アプリケーションのメイン関数
 void main() {
   runApp(const ActivityWatchApp());
 }
 
-// ログエントリのデータ構造
+// データモデル (LogEntry, SavedLogSession)
 class LogEntry {
-  final DateTime actualSessionStartTime; 
-  final String startTime; 
-  final String endTime;   
-  String memo;      
+  final DateTime actualSessionStartTime;
+  final String startTime;
+  final String endTime;
+  String memo;
 
   LogEntry({
     required this.actualSessionStartTime,
@@ -23,9 +28,70 @@ class LogEntry {
     required this.endTime,
     required this.memo,
   });
+
+  Map<String, dynamic> toJson() => {
+        'actualSessionStartTime': actualSessionStartTime.toIso8601String(),
+        'startTime': startTime,
+        'endTime': endTime,
+        'memo': memo,
+      };
+
+  factory LogEntry.fromJson(Map<String, dynamic> json) => LogEntry(
+        actualSessionStartTime: DateTime.parse(json['actualSessionStartTime'] as String),
+        startTime: json['startTime'] as String,
+        endTime: json['endTime'] as String,
+        memo: json['memo'] as String,
+      );
 }
 
-// アプリケーションのルートウィジェット
+class SavedLogSession {
+  final String id;
+  final String title;
+  final String? sessionComment;
+  final DateTime saveDate;
+  final List<LogEntry> logEntries;
+
+  SavedLogSession({
+    required this.id,
+    required this.title,
+    this.sessionComment,
+    required this.saveDate,
+    required this.logEntries,
+  });
+
+  SavedLogSession copyWith({
+    String? title,
+    String? sessionComment,
+  }) {
+    return SavedLogSession(
+      id: id,
+      title: title ?? this.title,
+      sessionComment: sessionComment ?? this.sessionComment,
+      saveDate: saveDate,
+      logEntries: logEntries,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'sessionComment': sessionComment,
+        'saveDate': saveDate.toIso8601String(),
+        'logEntries': logEntries.map((log) => log.toJson()).toList(),
+      };
+
+  factory SavedLogSession.fromJson(Map<String, dynamic> json) => SavedLogSession(
+        id: json['id'] as String,
+        title: json['title'] as String,
+        sessionComment: json['sessionComment'] as String?,
+        saveDate: DateTime.parse(json['saveDate'] as String),
+        logEntries: (json['logEntries'] as List<dynamic>)
+            .map((logJson) => LogEntry.fromJson(logJson as Map<String, dynamic>))
+            .toList(),
+      );
+}
+
+
 class ActivityWatchApp extends StatelessWidget {
   const ActivityWatchApp({super.key});
 
@@ -40,117 +106,196 @@ class ActivityWatchApp extends StatelessWidget {
           ),
         ),
         dataTableTheme: DataTableThemeData(
-          dataRowMinHeight: 48, 
-          columnSpacing: 16, 
+          dataRowMinHeight: 48,
+          columnSpacing: 16,
           headingTextStyle: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 14),
         ),
         iconButtonTheme: IconButtonThemeData(
-          style: IconButton.styleFrom(
-            foregroundColor: Colors.grey[700],
-          )
+            style: IconButton.styleFrom(
+          foregroundColor: Colors.grey[700],
+        )),
+        bottomNavigationBarTheme: BottomNavigationBarThemeData(
+          selectedItemColor: Theme.of(context).primaryColor,
+          unselectedItemColor: Colors.grey,
+          showUnselectedLabels: true,
         ),
       ),
-      home: const StopwatchScreen(),
+      home: const AppShell(),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
-// ストップウォッチ画面のウィジェット
-class StopwatchScreen extends StatefulWidget {
-  const StopwatchScreen({super.key});
+class AppShell extends StatefulWidget {
+  const AppShell({super.key});
 
   @override
-  State<StopwatchScreen> createState() => _StopwatchScreenState();
+  State<AppShell> createState() => _AppShellState();
 }
 
-// ストップウォッチ画面の状態を管理するクラス
-class _StopwatchScreenState extends State<StopwatchScreen> {
-  final Stopwatch _stopwatch = Stopwatch();
-  Timer? _timer;
-  bool _isRunning = false; 
-  String _elapsedTime = '00:00:00:00'; 
-  final TextEditingController _logMemoController = TextEditingController();
-  final TextEditingController _editLogMemoController = TextEditingController(); 
+class _AppShellState extends State<AppShell> {
+  int _selectedIndex = 0;
 
-  final List<LogEntry> _logs = [];
-  DateTime? _currentActualSessionStartTime; 
-
-  List<String> _commentSuggestions = [];
-  // ★追加: SharedPreferencesのキー (SettingsScreenと共通)
-  static const String _suggestionsKey = 'comment_suggestions';
+  late final List<Widget> _widgetOptions;
 
   @override
   void initState() {
     super.initState();
-    _loadInitialSuggestions(); // ★追加: アプリ起動時にサジェスチョンを読み込む
+    _widgetOptions = <Widget>[
+      const StopwatchScreenWidget(),
+      const SavedSessionsScreen(),
+      const SettingsScreen(),
+    ];
   }
 
-  // ★追加: SharedPreferencesからサジェスチョンリストを読み込むメソッド
-  Future<void> _loadInitialSuggestions() async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
+  void _onItemTapped(int index) {
     setState(() {
-      _commentSuggestions = prefs.getStringList(_suggestionsKey) ?? []; // 保存されたものがなければ空リスト
+      _selectedIndex = index;
     });
   }
 
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _widgetOptions,
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        items: const <BottomNavigationBarItem>[
+          BottomNavigationBarItem(
+            icon: Icon(Icons.timer_outlined),
+            label: '計測',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.history),
+            label: '履歴',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: '設定',
+          ),
+        ],
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+      ),
+    );
+  }
+}
 
-  // カタカナをひらがなに変換するユーティリティ関数
+class StopwatchScreenWidget extends StatefulWidget {
+  const StopwatchScreenWidget({super.key});
+
+  @override
+  State<StopwatchScreenWidget> createState() => _StopwatchScreenWidgetState();
+}
+
+class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
+  final Stopwatch _stopwatch = Stopwatch();
+  Timer? _timer;
+  bool _isRunning = false;
+  String _elapsedTime = '00:00:00:00';
+  final TextEditingController _logMemoController = TextEditingController();
+  final TextEditingController _editLogMemoController = TextEditingController();
+  final TextEditingController _sessionTitleController = TextEditingController();
+  final TextEditingController _sessionCommentController = TextEditingController();
+
+  List<LogEntry> _logs = [];
+  DateTime? _currentActualSessionStartTime;
+
+  List<String> _commentSuggestions = [];
+  static const String _suggestionsKey = 'comment_suggestions';
+  static const String _savedSessionsKey = 'saved_log_sessions';
+  DateTime? _lastSuggestionsLoadTime;
+
+
+  @override
+  void initState() {
+    super.initState();
+    // VisibilityDetectorが担当
+  }
+
+  // State破棄時にコントローラーも破棄
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _stopwatch.stop();
+    _logMemoController.dispose();
+    _editLogMemoController.dispose();
+    _sessionTitleController.dispose();
+    _sessionCommentController.dispose();
+    super.dispose();
+  }
+
+
+  Future<void> loadSuggestionsFromPrefs({bool force = false}) async {
+     if (!force && _lastSuggestionsLoadTime != null && DateTime.now().difference(_lastSuggestionsLoadTime!) < const Duration(seconds: 1)) {
+      return;
+    }
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _commentSuggestions = prefs.getStringList(_suggestionsKey) ?? [];
+        _lastSuggestionsLoadTime = DateTime.now();
+      });
+    }
+  }
+
   String _katakanaToHiragana(String katakana) {
     return katakana.replaceAllMapped(RegExp(r'[\u30A1-\u30F6]'), (match) {
       return String.fromCharCode(match.group(0)!.codeUnitAt(0) - 0x60);
     });
   }
 
-  // メインのフローティングアクションボタンの処理
   void _handleFABPress() {
     setState(() {
       if (_isRunning) {
-        _showLogDialog(_formatLogTime(_stopwatch.elapsed)); 
+        _showLogDialog(_formatLogTime(_stopwatch.elapsed));
       } else {
-        _logs.clear(); 
-        _stopwatch.stop(); 
-        _stopwatch.reset(); 
-        _timer?.cancel(); 
-        _elapsedTime = '00:00:00:00'; 
-        _currentActualSessionStartTime = DateTime.now(); 
+        _logs.clear();
+        _stopwatch.stop();
+        _stopwatch.reset();
+        _timer?.cancel();
+        _elapsedTime = '00:00:00:00';
+        _currentActualSessionStartTime = DateTime.now();
 
-        _stopwatch.start(); 
-        _timer = Timer.periodic(const Duration(milliseconds: 10), (timer) { 
-          if (!_stopwatch.isRunning) { 
+        _stopwatch.start();
+        _timer = Timer.periodic(const Duration(milliseconds: 10), (timer) {
+          if (!_stopwatch.isRunning) {
             timer.cancel();
             return;
           }
-          setState(() {
-            _elapsedTime = _formatDisplayTime(_stopwatch.elapsed); 
-          });
+          if (mounted) {
+            setState(() {
+              _elapsedTime = _formatDisplayTime(_stopwatch.elapsed);
+            });
+          }
         });
         _isRunning = true;
       }
     });
   }
 
-  // カウンターを停止する処理
   void _stopCounter() {
-    setState(() {
-      if (_isRunning) { 
-        _stopwatch.stop();
-        _timer?.cancel();
-        _isRunning = false;
-      }
-    });
+    if (mounted) {
+      setState(() {
+        if (_isRunning) {
+          _stopwatch.stop();
+          _timer?.cancel();
+          _isRunning = false;
+        }
+      });
+    }
   }
 
-  // DateTimeをCSV用の文字列にフォーマットするヘルパー
   String _formatDateTimeForCsv(DateTime dt) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
     return "${dt.year.toString().padLeft(4, '0')}-${twoDigits(dt.month)}-${twoDigits(dt.day)} ${twoDigits(dt.hour)}:${twoDigits(dt.minute)}:${twoDigits(dt.second)}";
   }
 
-  // ログデータをCSV形式の文字列に変換するメソッド
   String _generateCsvData() {
     final StringBuffer csvBuffer = StringBuffer();
-    csvBuffer.writeln('SESSION,START,END,COMMENT'); 
+    csvBuffer.writeln('SESSION,START,END,COMMENT');
     for (int i = _logs.length - 1; i >= 0; i--) {
       final log = _logs[i];
       final memoField = '"${log.memo.replaceAll('"', '""')}"';
@@ -160,10 +305,15 @@ class _StopwatchScreenState extends State<StopwatchScreen> {
     return csvBuffer.toString();
   }
 
-  // ログデータを共有する処理
   void _shareLogs() {
-    final String csvData = _generateCsvData(); 
-    Share.share(csvData, subject: 'ActivityWatch ログデータ'); 
+    if (_logs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('共有するログがありません。')),
+      );
+      return;
+    }
+    final String csvData = _generateCsvData();
+    Share.share(csvData, subject: 'ActivityWatch ログデータ');
   }
 
   String _formatDisplayTime(Duration duration) {
@@ -171,7 +321,7 @@ class _StopwatchScreenState extends State<StopwatchScreen> {
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
     final seconds = duration.inSeconds.remainder(60);
-    final milliseconds = (duration.inMilliseconds.remainder(1000) ~/ 10); 
+    final milliseconds = (duration.inMilliseconds.remainder(1000) ~/ 10);
     return '${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}:${twoDigits(milliseconds)}';
   }
 
@@ -183,189 +333,216 @@ class _StopwatchScreenState extends State<StopwatchScreen> {
     return '${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}';
   }
 
-  Future<void> _showLogDialog(String timeForLogDialog) async { 
-    _logMemoController.clear(); 
-    await showDialog<void>( 
-      context: context,
-      barrierDismissible: true, 
-      builder: (BuildContext dialogContext) { 
-            return AlertDialog(
-              contentPadding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 0), 
-              titlePadding: EdgeInsets.zero, 
-              content: SizedBox( 
-                width: MediaQuery.of(dialogContext).size.width * 0.8, 
-                child: SingleChildScrollView(
-                  child: ListBody(
-                    children: <Widget>[
-                      Text('LOGGING TIME: $timeForLogDialog', style: const TextStyle(fontWeight: FontWeight.bold)), 
-                      const SizedBox(height: 16),
-                      Autocomplete<String>(
-                        optionsBuilder: (TextEditingValue textEditingValue) {
-                          if (textEditingValue.text == '') {
-                            return const Iterable<String>.empty();
-                          }
-                          final String inputTextHiragana = _katakanaToHiragana(textEditingValue.text.toLowerCase());
-                          return _commentSuggestions.where((String option) {
-                            final String optionHiragana = _katakanaToHiragana(option.toLowerCase());
-                            return optionHiragana.contains(inputTextHiragana);
-                          });
-                        },
-                        onSelected: (String selection) {
-                          _logMemoController.text = selection;
-                        },
-                        fieldViewBuilder: (BuildContext context, TextEditingController fieldTextEditingController,
-                            FocusNode fieldFocusNode, VoidCallback onFieldSubmitted) {
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                             if (fieldTextEditingController.text != _logMemoController.text) {
-                                fieldTextEditingController.text = _logMemoController.text;
-                             }
-                          });
-                          return TextField(
-                            controller: fieldTextEditingController, 
-                            focusNode: fieldFocusNode,
-                            autofocus: true,
-                            decoration: const InputDecoration( 
-                              border: OutlineInputBorder(),
-                              labelText: 'COMMENT', 
-                              hintText: 'Enter your comment here',
-                            ),
-                            maxLines: 1,
-                            keyboardType: TextInputType.text,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.deny(RegExp(r'[\n\r]')),
-                            ],
-                            onChanged: (text) {
-                                _logMemoController.text = text; 
-                            },
-                          );
-                        },
-                        optionsViewBuilder: (BuildContext context, AutocompleteOnSelected<String> onSelected, Iterable<String> options) {
-                          return Align(
-                            alignment: Alignment.topLeft,
-                            child: Material(
-                              elevation: 4.0,
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(maxHeight: 200, maxWidth: MediaQuery.of(dialogContext).size.width * 0.8 - 48), 
-                                child: ListView.builder(
-                                  padding: EdgeInsets.zero,
-                                  itemCount: options.length,
-                                  itemBuilder: (BuildContext context, int index) {
-                                    final String option = options.elementAt(index);
-                                    return InkWell(
-                                      onTap: () {
-                                        onSelected(option);
-                                      },
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(16.0),
-                                        child: Text(option),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              actionsPadding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0), 
-              actions: <Widget>[
-                Tooltip(
-                  message: '終了して記録',
-                  child: IconButton(
-                    icon: const Icon(Icons.stop_circle, color: Colors.redAccent, size: 28), 
-                    onPressed: () {
-                      String memo = _logMemoController.text.trim();
-                      if (memo.isEmpty) {
-                        memo = '(活動終了)'; 
-                      }
-                      final String startTime = _logs.isEmpty ? '00:00:00' : _logs.last.endTime;
-                      final newLog = LogEntry(
-                        actualSessionStartTime: _currentActualSessionStartTime!, 
-                        startTime: startTime,
-                        endTime: timeForLogDialog, 
-                        memo: memo, 
-                      );
-                      setState(() { 
-                        _logs.add(newLog); 
-                      });
-                      Navigator.of(dialogContext).pop(); 
-                      _stopCounter(); 
-                    },
-                  ),
-                ),
-                const Spacer(), 
-                Tooltip(
-                  message: '保存して記録を続ける',
-                  child: IconButton(
-                    icon: Icon(Icons.edit, color: Theme.of(dialogContext).primaryColor, size: 28), 
-                    onPressed: () {
-                      String memo = _logMemoController.text.trim();
-                      if (memo.isEmpty) {
-                        memo = '(ラップを記録)';
-                      }
-                      final String startTime = _logs.isEmpty ? '00:00:00' : _logs.last.endTime;
-                      final newLog = LogEntry(
-                        actualSessionStartTime: _currentActualSessionStartTime!, 
-                        startTime: startTime,
-                        endTime: timeForLogDialog, 
-                        memo: memo, 
-                      );
-                      setState(() { 
-                        _logs.add(newLog); 
-                      });
-                      Navigator.of(dialogContext).pop(); 
-                    },
-                  ),
-                ),
-              ],
-            );
-      },
-    );
-  }
-
-  Future<void> _showEditLogDialog(int logIndex) async {
-    final LogEntry currentLog = _logs[logIndex];
-    _editLogMemoController.text = currentLog.memo; 
+  // ラップ記録ダイアログ
+  Future<void> _showLogDialog(String timeForLogDialog) async {
+    _logMemoController.clear(); // 表示前にコントローラーをクリア
 
     await showDialog<void>(
       context: context,
-      barrierDismissible: true, 
+      barrierDismissible: true,
       builder: (BuildContext dialogContext) {
+        // ★ FocusNodeの明示的な管理を削除
+        return AlertDialog(
+          contentPadding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 0),
+          titlePadding: EdgeInsets.zero,
+          content: SizedBox(
+            width: MediaQuery.of(dialogContext).size.width * 0.8,
+            child: SingleChildScrollView(
+              child: ListBody(
+                children: <Widget>[
+                  Text('LOGGING TIME: $timeForLogDialog', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  Autocomplete<String>(
+                    // ★ textEditingController, focusNodeパラメータを削除
+                    optionsBuilder: (TextEditingValue textEditingValue) {
+                      final query = textEditingValue.text;
+                      // ★ 外部コントローラーへの同期はonChanged/onSelectedで行う
+                      if (query == '') return const Iterable<String>.empty();
+                      final String inputTextHiragana = _katakanaToHiragana(query.toLowerCase());
+                      return _commentSuggestions.where((String option) {
+                        final String optionHiragana = _katakanaToHiragana(option.toLowerCase());
+                        return optionHiragana.contains(inputTextHiragana);
+                      });
+                    },
+                    onSelected: (String selection) {
+                       // ★ 外部コントローラーに値を設定
+                       _logMemoController.text = selection;
+                       _logMemoController.selection = TextSelection.fromPosition(
+                           TextPosition(offset: _logMemoController.text.length));
+                       // ★ フォーカス制御削除
+                    },
+                    fieldViewBuilder: (BuildContext context,
+                        TextEditingController fieldTextEditingController,
+                        FocusNode fieldFocusNode,
+                        VoidCallback onFieldSubmitted) {
+
+                      // ★ 初期値の設定（必要であれば）
+                      if (fieldTextEditingController.text.isEmpty && _logMemoController.text.isNotEmpty) {
+                           WidgetsBinding.instance.addPostFrameCallback((_){
+                              if(mounted){
+                                 fieldTextEditingController.text = _logMemoController.text;
+                              }
+                           });
+                      }
+                       // ★ 初期フォーカス要求は削除 (autofocus: true に任せる)
+
+                      return TextField(
+                        controller: fieldTextEditingController,
+                        focusNode: fieldFocusNode,
+                        autofocus: true, // ★ autofocusを有効化
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          labelText: 'COMMENT',
+                          hintText: 'Enter your comment here',
+                        ),
+                        maxLines: 1,
+                        keyboardType: TextInputType.text,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.deny(RegExp(r'[\n\r]')),
+                        ],
+                        onChanged: (text) {
+                            // ★ 入力値を外部コントローラにも反映
+                            _logMemoController.text = text;
+                        },
+                        onSubmitted: (_){ onFieldSubmitted(); },
+                      );
+                    },
+                    optionsViewBuilder: (BuildContext context, AutocompleteOnSelected<String> onSelected, Iterable<String> options) {
+                       return Align(
+                        alignment: Alignment.topLeft,
+                        child: Material(
+                          elevation: 4.0,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(maxHeight: 200, maxWidth: MediaQuery.of(dialogContext).size.width * 0.8 - 48),
+                            child: ListView.builder(
+                              padding: EdgeInsets.zero,
+                              itemCount: options.length,
+                              itemBuilder: (BuildContext context, int index) {
+                                final String option = options.elementAt(index);
+                                return InkWell(
+                                  onTap: () => onSelected(option),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Text(option),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actionsPadding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+          actions: <Widget>[
+            Tooltip(
+              message: '終了して記録',
+              child: IconButton(
+                icon: const Icon(Icons.stop_circle, color: Colors.redAccent, size: 28),
+                onPressed: () {
+                  // ★ フォーカス制御削除
+                  String memo = _logMemoController.text.trim();
+                  if (memo.isEmpty) memo = '(活動終了)';
+                  final String startTime = _logs.isEmpty ? '00:00:00' : _logs.last.endTime;
+                  final newLog = LogEntry(
+                    actualSessionStartTime: _currentActualSessionStartTime!,
+                    startTime: startTime,
+                    endTime: timeForLogDialog,
+                    memo: memo,
+                  );
+                  if (mounted) setState(() => _logs.add(newLog));
+                  Navigator.of(dialogContext).pop();
+                  _stopCounter();
+                },
+              ),
+            ),
+            const Spacer(),
+            Tooltip(
+              message: '保存して記録を続ける',
+              child: IconButton(
+                icon: Icon(Icons.edit, color: Theme.of(dialogContext).primaryColor, size: 28),
+                onPressed: () {
+                  // ★ フォーカス制御削除
+                  String memo = _logMemoController.text.trim();
+                  if (memo.isEmpty) memo = '(ラップを記録)';
+                  final String startTime = _logs.isEmpty ? '00:00:00' : _logs.last.endTime;
+                  final newLog = LogEntry(
+                    actualSessionStartTime: _currentActualSessionStartTime!,
+                    startTime: startTime,
+                    endTime: timeForLogDialog,
+                    memo: memo,
+                  );
+                   if (mounted) setState(() => _logs.add(newLog));
+                  Navigator.of(dialogContext).pop();
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    ).then((_) {
+      // ★ ダイアログが閉じたらフォーカスを外す（キーボード対策）
+      FocusScope.of(context).unfocus();
+    });
+  }
+
+  // ラップメモ編集ダイアログ
+  Future<void> _showEditLogDialog(int logIndex) async {
+    final LogEntry currentLog = _logs[logIndex];
+    _editLogMemoController.text = currentLog.memo;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext dialogContext) {
+         // ★ FocusNodeの明示的な管理を削除
         return AlertDialog(
           title: const Text('Edit COMMENT'),
           contentPadding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 0),
           content: SizedBox(
             width: MediaQuery.of(dialogContext).size.width * 0.8,
             child: Autocomplete<String>(
-              initialValue: TextEditingValue(text: currentLog.memo), 
+              initialValue: TextEditingValue(text: _editLogMemoController.text),
               optionsBuilder: (TextEditingValue textEditingValue) {
-                if (textEditingValue.text == '') {
-                  return const Iterable<String>.empty();
-                }
-                final String inputTextHiragana = _katakanaToHiragana(textEditingValue.text.toLowerCase());
+                final query = textEditingValue.text;
+                // ★ 外部コントローラーへの同期はonChanged/onSelectedで行う
+                if (query == '') return const Iterable<String>.empty();
+                final String inputTextHiragana = _katakanaToHiragana(query.toLowerCase());
                 return _commentSuggestions.where((String option) {
                   final String optionHiragana = _katakanaToHiragana(option.toLowerCase());
                   return optionHiragana.contains(inputTextHiragana);
                 });
               },
               onSelected: (String selection) {
+                // ★ 外部コントローラーに値を設定
                 _editLogMemoController.text = selection;
+                _editLogMemoController.selection = TextSelection.fromPosition(
+                    TextPosition(offset: _editLogMemoController.text.length));
+                 // ★ フォーカス制御削除
               },
-              fieldViewBuilder: (BuildContext context, TextEditingController fieldTextEditingController,
-                  FocusNode fieldFocusNode, VoidCallback onFieldSubmitted) {
-                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (fieldTextEditingController.text != _editLogMemoController.text) {
-                        fieldTextEditingController.text = _editLogMemoController.text;
-                    }
-                 });
-                return TextField(
+              fieldViewBuilder: (BuildContext context,
+                  TextEditingController fieldTextEditingController,
+                  FocusNode fieldFocusNode,
+                  VoidCallback onFieldSubmitted) {
+
+                  // ★ 初期値の設定（必要であれば）
+                  if (fieldTextEditingController.text.isEmpty && _editLogMemoController.text.isNotEmpty) {
+                       WidgetsBinding.instance.addPostFrameCallback((_){
+                          if(mounted){
+                             fieldTextEditingController.text = _editLogMemoController.text;
+                          }
+                       });
+                  }
+                  // ★ 初期フォーカス要求は削除 (autofocus: true に任せる)
+
+               return TextField(
                   controller: fieldTextEditingController,
                   focusNode: fieldFocusNode,
-                  autofocus: true,
+                  autofocus: true, // ★ autofocusを有効化
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
                     labelText: 'NEW COMMENT',
@@ -376,26 +553,26 @@ class _StopwatchScreenState extends State<StopwatchScreen> {
                     FilteringTextInputFormatter.deny(RegExp(r'[\n\r]')),
                   ],
                    onChanged: (text) {
-                       _editLogMemoController.text = text; 
+                       // ★ 入力値を外部コントローラにも反映
+                       _editLogMemoController.text = text;
                    },
-                );
+                  onSubmitted: (_){ onFieldSubmitted(); },
+               );
               },
               optionsViewBuilder: (BuildContext context, AutocompleteOnSelected<String> onSelected, Iterable<String> options) {
-                return Align(
+                 return Align(
                   alignment: Alignment.topLeft,
                   child: Material(
                     elevation: 4.0,
                     child: ConstrainedBox(
-                      constraints: BoxConstraints(maxHeight: 200, maxWidth: MediaQuery.of(dialogContext).size.width * 0.8 - 48), 
+                      constraints: BoxConstraints(maxHeight: 200, maxWidth: MediaQuery.of(dialogContext).size.width * 0.8 - 48),
                       child: ListView.builder(
                         padding: EdgeInsets.zero,
                         itemCount: options.length,
                         itemBuilder: (BuildContext context, int index) {
                           final String option = options.elementAt(index);
                           return InkWell(
-                            onTap: () {
-                              onSelected(option);
-                            },
+                            onTap: () => onSelected(option),
                             child: Padding(
                               padding: const EdgeInsets.all(16.0),
                               child: Text(option),
@@ -414,33 +591,176 @@ class _StopwatchScreenState extends State<StopwatchScreen> {
             TextButton(
               child: const Text('Dissmiss'),
               onPressed: () {
+                 // ★ フォーカス制御削除
                 Navigator.of(dialogContext).pop();
               },
             ),
             ElevatedButton(
               child: const Text('Save'),
               onPressed: () {
+                 // ★ フォーカス制御削除
                 final String newMemo = _editLogMemoController.text.trim();
-                setState(() {
-                  _logs[logIndex].memo = newMemo; 
-                });
+                if (mounted) {
+                  setState(() {
+                    _logs[logIndex].memo = newMemo;
+                  });
+                }
                 Navigator.of(dialogContext).pop();
               },
             ),
           ],
         );
       },
+    ).then((_) {
+        // ★ ダイアログが閉じたらフォーカスを外す（キーボード対策）
+        FocusScope.of(context).unfocus();
+    });
+  }
+
+  // セッション保存ダイアログ
+  Future<void> _showSaveSessionDialog() async {
+    if (_logs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('保存するログがありません。')),
+      );
+      return;
+    }
+    if (_isRunning) {
+       ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('まずストップウォッチを停止してください。')),
+      );
+      return;
+    }
+
+    _sessionTitleController.clear();
+    _sessionCommentController.clear();
+
+    final Map<String, String>? sessionData = await showDialog<Map<String, String>>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext dialogContext) {
+        // ★ FocusNodeの明示的な管理を削除
+        return AlertDialog(
+          title: const Text('セッションを保存'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                TextField(
+                  controller: _sessionTitleController,
+                  // focusNode: titleFocusNode, // 削除
+                  autofocus: true, // ★ autofocusを有効化
+                  decoration: const InputDecoration(
+                    labelText: "タイトル",
+                    hintText: "セッションのタイトルを入力"
+                  ),
+                   textInputAction: TextInputAction.next,
+                   // ★ onSubmitted でのフォーカス移動を削除
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _sessionCommentController,
+                  // focusNode: commentFocusNode, // 削除
+                  decoration: const InputDecoration(
+                    labelText: "コメント (任意)",
+                    hintText: "セッション全体に関するコメントを入力",
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.multiline,
+                  maxLines: null,
+                  minLines: 3,
+                  textInputAction: TextInputAction.done,
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('キャンセル'),
+              onPressed: () {
+                 // ★ フォーカス制御削除
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('保存'),
+              onPressed: () {
+                if (_sessionTitleController.text.trim().isEmpty) {
+                   ScaffoldMessenger.of(dialogContext).showSnackBar(
+                     const SnackBar(content: Text('タイトルは必須です。')),
+                   );
+                   // ★ フォーカス制御削除
+                   return;
+                }
+                 // ★ フォーカス制御削除
+                Navigator.of(dialogContext).pop({
+                  'title': _sessionTitleController.text.trim(),
+                  'comment': _sessionCommentController.text.trim(),
+                });
+              },
+            ),
+          ],
+        );
+      },
+    ).then((value) {
+      // ★ ダイアログが閉じたらフォーカスを外す（キーボード対策）
+      FocusScope.of(context).unfocus();
+      return value;
+    });
+
+
+    if (sessionData != null && sessionData['title'] != null && sessionData['title']!.isNotEmpty) {
+      await _saveCurrentSession(sessionData['title']!, sessionData['comment']);
+    }
+  }
+
+  Future<void> _saveCurrentSession(String title, String? comment) async {
+    final prefs = await SharedPreferences.getInstance();
+    final String newSessionId = DateTime.now().millisecondsSinceEpoch.toString();
+
+    final newSavedSession = SavedLogSession(
+      id: newSessionId,
+      title: title,
+      sessionComment: comment,
+      saveDate: DateTime.now(),
+      logEntries: List<LogEntry>.from(_logs),
     );
+
+    final String? existingSessionsJson = prefs.getString(_savedSessionsKey);
+    List<SavedLogSession> savedSessions = [];
+    if (existingSessionsJson != null && existingSessionsJson.isNotEmpty) {
+      try {
+        final List<dynamic> decodedList = jsonDecode(existingSessionsJson) as List<dynamic>;
+        savedSessions = decodedList
+            .map((jsonItem) => SavedLogSession.fromJson(jsonItem as Map<String, dynamic>))
+            .toList();
+      } catch (e) {
+        print('Error decoding saved sessions: $e');
+        savedSessions = [];
+      }
+    }
+    
+    savedSessions.add(newSavedSession);
+    savedSessions.sort((a, b) => b.saveDate.compareTo(a.saveDate));
+
+
+    final String updatedSessionsJson = jsonEncode(savedSessions.map((s) => s.toJson()).toList());
+    await prefs.setString(_savedSessionsKey, updatedSessionsJson);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('「$title」としてセッションを保存しました。')),
+      );
+    }
   }
 
 
   Widget _buildLogTableHeader(BuildContext context) {
     final theme = Theme.of(context);
     final dataTableTheme = theme.dataTableTheme;
-    final headingTextStyle = dataTableTheme.headingTextStyle ?? 
-                             const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 14);
+    final headingTextStyle = dataTableTheme.headingTextStyle ??
+        const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 14);
     return Container(
-      decoration: BoxDecoration( 
+      decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
             color: theme.dividerColor,
@@ -448,57 +768,57 @@ class _StopwatchScreenState extends State<StopwatchScreen> {
           ),
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0), 
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       child: Row(
         children: <Widget>[
           Expanded(
-            flex: 2, 
-            child: Text('END', style: headingTextStyle), 
+            flex: 2,
+            child: Text('END', style: headingTextStyle),
           ),
           Expanded(
-            flex: 4, 
-            child: Text('COMMENT', style: headingTextStyle), 
+            flex: 4,
+            child: Text('COMMENT', style: headingTextStyle),
           ),
-          const SizedBox(width: 48), 
+          const SizedBox(width: 48),
         ],
       ),
     );
   }
 
-  Widget _buildLogRow(BuildContext context, LogEntry log, int index) { 
-     final theme = Theme.of(context);
-     final dataTableTheme = theme.dataTableTheme; 
-     final dataRowMinHeight = dataTableTheme.dataRowMinHeight ?? 48.0;
+  Widget _buildLogRow(BuildContext context, LogEntry log, int index) {
+    final theme = Theme.of(context);
+    final dataTableTheme = theme.dataTableTheme;
+    final dataRowMinHeight = dataTableTheme.dataRowMinHeight ?? 48.0;
     return Container(
       constraints: BoxConstraints(minHeight: dataRowMinHeight),
-      padding: const EdgeInsets.only(left:16.0, right:0, top:8.0, bottom: 8.0), 
+      padding: const EdgeInsets.only(left: 16.0, right: 0, top: 8.0, bottom: 8.0),
       child: Row(
         children: <Widget>[
           Expanded(
-            flex: 2, 
+            flex: 2,
             child: Text(log.endTime),
           ),
           Expanded(
-            flex: 4, 
+            flex: 4,
             child: Tooltip(
               message: log.memo,
               child: Text(
                 log.memo,
                 overflow: TextOverflow.ellipsis,
-                maxLines: 2, 
+                maxLines: 2,
               ),
             ),
           ),
           SizedBox(
-            width: 48, 
+            width: 48,
             child: Tooltip(
               message: 'EDIT COMMENT',
               child: IconButton(
-                icon: const Icon(Icons.edit_note, size: 20), 
-                padding: EdgeInsets.zero, 
-                visualDensity: VisualDensity.compact, 
+                icon: const Icon(Icons.edit_note, size: 20),
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
                 onPressed: () {
-                  _showEditLogDialog(index); 
+                  _showEditLogDialog(index);
                 },
               ),
             ),
@@ -508,126 +828,102 @@ class _StopwatchScreenState extends State<StopwatchScreen> {
     );
   }
 
-  // 設定画面へ遷移するメソッド
-  void _navigateToSettingsScreen() async {
-    final List<String>? updatedSuggestions = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => SettingsScreen(initialSuggestions: List<String>.from(_commentSuggestions)),
-      ),
-    );
-
-    if (updatedSuggestions != null) {
-      setState(() {
-        _commentSuggestions = updatedSuggestions;
-        // ★変更点: StopwatchScreen側でも保存処理を呼び出す (SettingsScreenで変更があった場合)
-        _saveSuggestionsToPrefs(updatedSuggestions); 
-      });
-    }
-  }
-
-  // ★追加: StopwatchScreen側でサジェスチョンを保存するメソッド
-  Future<void> _saveSuggestionsToPrefs(List<String> suggestions) async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_suggestionsKey, suggestions);
-  }
-
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    _stopwatch.stop();
-    _logMemoController.dispose();
-    _editLogMemoController.dispose(); 
-    super.dispose();
-  }
 
   Widget _buildFloatingActionButton() {
-    if (!_isRunning) { 
+    if (!_isRunning) {
       return FloatingActionButton(
-        onPressed: _handleFABPress, 
-        tooltip: '開始', 
-        heroTag: 'startFab', 
+        onPressed: _handleFABPress,
+        tooltip: '開始',
+        heroTag: 'startFab',
         child: const Icon(Icons.play_arrow, size: 36.0),
       );
-    } else { 
+    } else {
       return FloatingActionButton(
-        onPressed: _handleFABPress, 
-        tooltip: 'ラップ記録', 
-        heroTag: 'lapRecordFab', 
-        child: const Icon(Icons.format_list_bulleted_add, size: 36.0), 
+        onPressed: _handleFABPress,
+        tooltip: 'ラップ記録',
+        heroTag: 'lapRecordFab',
+        child: const Icon(Icons.format_list_bulleted_add, size: 36.0),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea( 
-        child: Column( 
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Padding( 
-              padding: const EdgeInsets.only(top: 50.0, bottom: 30.0), 
-              child: Text(
-                _elapsedTime, 
-                style: const TextStyle(
-                  fontSize: 56.0,
-                  fontWeight: FontWeight.bold,
-                  fontFeatures: [FontFeature.tabularFigures()],
+    return VisibilityDetector(
+      key: const Key('stopwatch_screen_widget_visibility_detector'),
+      onVisibilityChanged: (visibilityInfo) {
+        final visiblePercentage = visibilityInfo.visibleFraction * 100;
+        if (mounted && visiblePercentage > 50) {
+          loadSuggestionsFromPrefs();
+        }
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.only(top: 48.0, bottom: 32.0),
+                child: Text(
+                  _elapsedTime,
+                  style: const TextStyle(
+                    fontSize: 56.0,
+                    fontWeight: FontWeight.bold,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0), 
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end, 
-                children: [
-                  Tooltip( 
-                    message: 'ログを共有 (CSV)',
-                    child: IconButton(
-                      icon: const Icon(Icons.share),
-                      onPressed: _shareLogs, 
+              Padding( 
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Tooltip(
+                      message: '現在のログを保存',
+                      child: IconButton(
+                        icon: const Icon(Icons.save),
+                        onPressed: (_logs.isNotEmpty && !_isRunning) ? _showSaveSessionDialog : null,
+                      ),
                     ),
-                  ),
-                  Tooltip(
-                    message: 'サジェスト設定',
-                    child: IconButton(
-                      icon: const Icon(Icons.settings),
-                      onPressed: _navigateToSettingsScreen,
+                    Tooltip(
+                      message: 'ログを共有 (CSV)',
+                      child: IconButton(
+                        icon: const Icon(Icons.share),
+                        onPressed: _logs.isNotEmpty ? _shareLogs : null,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            _buildLogTableHeader(context),
-            Expanded( 
-              child: _logs.isEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Text(
-                          'NO DATA', 
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ))
-                  : ListView.builder(
-                      itemCount: _logs.length,
-                      itemBuilder: (context, index) {
-                        final logIndex = _logs.length - 1 - index; 
-                        return _buildLogRow(context, _logs[logIndex], logIndex); 
-                      },
-                    ),
-            ),
-          ],
+              _buildLogTableHeader(context),
+              Expanded(
+                child: _logs.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Text(
+                            'NO DATA',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ))
+                    : ListView.builder(
+                        itemCount: _logs.length,
+                        itemBuilder: (context, index) {
+                          final logIndex = _logs.length - 1 - index;
+                          return _buildLogRow(context, _logs[logIndex], logIndex);
+                        },
+                      ),
+              ),
+            ],
+          ),
         ),
+        floatingActionButton: SizedBox(
+          width: 70.0,
+          height: 70.0,
+          child: _buildFloatingActionButton(),
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       ),
-      floatingActionButton: SizedBox( 
-        width: 70.0,
-        height: 70.0,
-        child: _buildFloatingActionButton(),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }
