@@ -1,10 +1,11 @@
-import 'dart:async';
+// main.dart
+import 'dart:async'; // ★ Timerクラスを使用するために dart:async をインポート
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:intl/intl.dart';
+//import 'package:intl/intl.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import 'settings_screen.dart';
@@ -100,6 +101,10 @@ class ActivityWatchApp extends StatelessWidget {
     return MaterialApp(
       theme: ThemeData(
         primarySwatch: Colors.blue,
+        // Use colorScheme for modern Flutter theming
+        colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.blue).copyWith(
+          secondary: Colors.blueAccent, // Example secondary color
+        ),
         dialogTheme: DialogTheme(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16.0),
@@ -115,7 +120,7 @@ class ActivityWatchApp extends StatelessWidget {
           foregroundColor: Colors.grey[700],
         )),
         bottomNavigationBarTheme: BottomNavigationBarThemeData(
-          selectedItemColor: Theme.of(context).primaryColor,
+          selectedItemColor: Theme.of(context).colorScheme.primary,
           unselectedItemColor: Colors.grey,
           showUnselectedLabels: true,
         ),
@@ -192,7 +197,7 @@ class StopwatchScreenWidget extends StatefulWidget {
 
 class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
   final Stopwatch _stopwatch = Stopwatch();
-  Timer? _timer;
+  Timer? _timer; // Timer is defined in dart:async
   bool _isRunning = false;
   String _elapsedTime = '00:00:00:00';
   final TextEditingController _logMemoController = TextEditingController();
@@ -200,7 +205,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
   final TextEditingController _sessionTitleController = TextEditingController();
   final TextEditingController _sessionCommentController = TextEditingController();
 
-  List<LogEntry> _logs = [];
+  List<LogEntry> _logs = []; // This field is modified, so it cannot be final.
   DateTime? _currentActualSessionStartTime;
 
   List<String> _commentSuggestions = [];
@@ -233,12 +238,11 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
       return;
     }
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    if (mounted) {
-      setState(() {
+    if (!mounted) return;
+    setState(() {
         _commentSuggestions = prefs.getStringList(_suggestionsKey) ?? [];
         _lastSuggestionsLoadTime = DateTime.now();
-      });
-    }
+    });
   }
 
   String _katakanaToHiragana(String katakana) {
@@ -260,7 +264,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
         _currentActualSessionStartTime = DateTime.now();
 
         _stopwatch.start();
-        _timer = Timer.periodic(const Duration(milliseconds: 10), (timer) {
+        _timer = Timer.periodic(const Duration(milliseconds: 10), (timer) { // Timer usage
           if (!_stopwatch.isRunning) {
             timer.cancel();
             return;
@@ -307,6 +311,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
 
   void _shareLogs() {
     if (_logs.isEmpty) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('共有するログがありません。')),
       );
@@ -335,13 +340,15 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
 
   // ラップ記録ダイアログ
   Future<void> _showLogDialog(String timeForLogDialog) async {
-    _logMemoController.clear(); // 表示前にコントローラーをクリア
+    _logMemoController.clear();
 
-    await showDialog<void>(
+    // ★ unused_local_variable: dialogResult is not used, so we can remove it or use it.
+    // For now, we'll keep the await and let the dialog close itself.
+    // If we needed to react to how the dialog was closed, we would use the result.
+    await showDialog<bool>(
       context: context,
       barrierDismissible: true,
       builder: (BuildContext dialogContext) {
-        // ★ FocusNodeの明示的な管理を削除
         return AlertDialog(
           contentPadding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 0),
           titlePadding: EdgeInsets.zero,
@@ -353,10 +360,8 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                   Text('LOGGING TIME: $timeForLogDialog', style: const TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
                   Autocomplete<String>(
-                    // ★ textEditingController, focusNodeパラメータを削除
                     optionsBuilder: (TextEditingValue textEditingValue) {
                       final query = textEditingValue.text;
-                      // ★ 外部コントローラーへの同期はonChanged/onSelectedで行う
                       if (query == '') return const Iterable<String>.empty();
                       final String inputTextHiragana = _katakanaToHiragana(query.toLowerCase());
                       return _commentSuggestions.where((String option) {
@@ -365,31 +370,25 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                       });
                     },
                     onSelected: (String selection) {
-                       // ★ 外部コントローラーに値を設定
                        _logMemoController.text = selection;
                        _logMemoController.selection = TextSelection.fromPosition(
                            TextPosition(offset: _logMemoController.text.length));
-                       // ★ フォーカス制御削除
                     },
                     fieldViewBuilder: (BuildContext context,
                         TextEditingController fieldTextEditingController,
                         FocusNode fieldFocusNode,
                         VoidCallback onFieldSubmitted) {
-
-                      // ★ 初期値の設定（必要であれば）
                       if (fieldTextEditingController.text.isEmpty && _logMemoController.text.isNotEmpty) {
                            WidgetsBinding.instance.addPostFrameCallback((_){
-                              if(mounted){
+                              if(mounted && fieldTextEditingController.text.isEmpty){
                                  fieldTextEditingController.text = _logMemoController.text;
                               }
                            });
                       }
-                       // ★ 初期フォーカス要求は削除 (autofocus: true に任せる)
-
                       return TextField(
                         controller: fieldTextEditingController,
                         focusNode: fieldFocusNode,
-                        autofocus: true, // ★ autofocusを有効化
+                        autofocus: true,
                         decoration: const InputDecoration(
                           border: OutlineInputBorder(),
                           labelText: 'COMMENT',
@@ -401,10 +400,13 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                           FilteringTextInputFormatter.deny(RegExp(r'[\n\r]')),
                         ],
                         onChanged: (text) {
-                            // ★ 入力値を外部コントローラにも反映
                             _logMemoController.text = text;
                         },
-                        onSubmitted: (_){ onFieldSubmitted(); },
+                        onSubmitted: (_){
+                          onFieldSubmitted(); // Important for Autocomplete
+                          // Decide if we want to auto-submit the dialog here or rely on buttons
+                          // For now, rely on buttons.
+                        },
                       );
                     },
                     optionsViewBuilder: (BuildContext context, AutocompleteOnSelected<String> onSelected, Iterable<String> options) {
@@ -444,7 +446,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
               child: IconButton(
                 icon: const Icon(Icons.stop_circle, color: Colors.redAccent, size: 28),
                 onPressed: () {
-                  // ★ フォーカス制御削除
                   String memo = _logMemoController.text.trim();
                   if (memo.isEmpty) memo = '(活動終了)';
                   final String startTime = _logs.isEmpty ? '00:00:00' : _logs.last.endTime;
@@ -455,7 +456,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                     memo: memo,
                   );
                   if (mounted) setState(() => _logs.add(newLog));
-                  Navigator.of(dialogContext).pop();
+                  Navigator.of(dialogContext).pop(true);
                   _stopCounter();
                 },
               ),
@@ -464,9 +465,8 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
             Tooltip(
               message: '保存して記録を続ける',
               child: IconButton(
-                icon: Icon(Icons.edit, color: Theme.of(dialogContext).primaryColor, size: 28),
+                icon: Icon(Icons.edit, color: Theme.of(dialogContext).colorScheme.primary, size: 28),
                 onPressed: () {
-                  // ★ フォーカス制御削除
                   String memo = _logMemoController.text.trim();
                   if (memo.isEmpty) memo = '(ラップを記録)';
                   final String startTime = _logs.isEmpty ? '00:00:00' : _logs.last.endTime;
@@ -477,17 +477,17 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                     memo: memo,
                   );
                    if (mounted) setState(() => _logs.add(newLog));
-                  Navigator.of(dialogContext).pop();
+                  Navigator.of(dialogContext).pop(true);
                 },
               ),
             ),
           ],
         );
       },
-    ).then((_) {
-      // ★ ダイアログが閉じたらフォーカスを外す（キーボード対策）
-      FocusScope.of(context).unfocus();
-    });
+    );
+
+    if (!mounted) return;
+    FocusScope.of(context).unfocus();
   }
 
   // ラップメモ編集ダイアログ
@@ -495,11 +495,11 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
     final LogEntry currentLog = _logs[logIndex];
     _editLogMemoController.text = currentLog.memo;
 
-    await showDialog<void>(
+    // ★ unused_local_variable: dialogResult is not used.
+    await showDialog<bool>(
       context: context,
       barrierDismissible: true,
       builder: (BuildContext dialogContext) {
-         // ★ FocusNodeの明示的な管理を削除
         return AlertDialog(
           title: const Text('Edit COMMENT'),
           contentPadding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 0),
@@ -509,7 +509,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
               initialValue: TextEditingValue(text: _editLogMemoController.text),
               optionsBuilder: (TextEditingValue textEditingValue) {
                 final query = textEditingValue.text;
-                // ★ 外部コントローラーへの同期はonChanged/onSelectedで行う
                 if (query == '') return const Iterable<String>.empty();
                 final String inputTextHiragana = _katakanaToHiragana(query.toLowerCase());
                 return _commentSuggestions.where((String option) {
@@ -518,31 +517,25 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                 });
               },
               onSelected: (String selection) {
-                // ★ 外部コントローラーに値を設定
                 _editLogMemoController.text = selection;
                 _editLogMemoController.selection = TextSelection.fromPosition(
                     TextPosition(offset: _editLogMemoController.text.length));
-                 // ★ フォーカス制御削除
               },
               fieldViewBuilder: (BuildContext context,
                   TextEditingController fieldTextEditingController,
                   FocusNode fieldFocusNode,
                   VoidCallback onFieldSubmitted) {
-
-                  // ★ 初期値の設定（必要であれば）
                   if (fieldTextEditingController.text.isEmpty && _editLogMemoController.text.isNotEmpty) {
                        WidgetsBinding.instance.addPostFrameCallback((_){
-                          if(mounted){
+                          if(mounted && fieldTextEditingController.text.isEmpty){
                              fieldTextEditingController.text = _editLogMemoController.text;
                           }
                        });
                   }
-                  // ★ 初期フォーカス要求は削除 (autofocus: true に任せる)
-
                return TextField(
                   controller: fieldTextEditingController,
                   focusNode: fieldFocusNode,
-                  autofocus: true, // ★ autofocusを有効化
+                  autofocus: true,
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
                     labelText: 'NEW COMMENT',
@@ -553,10 +546,12 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                     FilteringTextInputFormatter.deny(RegExp(r'[\n\r]')),
                   ],
                    onChanged: (text) {
-                       // ★ 入力値を外部コントローラにも反映
                        _editLogMemoController.text = text;
                    },
-                  onSubmitted: (_){ onFieldSubmitted(); },
+                  onSubmitted: (_){
+                    onFieldSubmitted();
+                    // Decide if we want to auto-submit the dialog here or rely on buttons
+                  },
                );
               },
               optionsViewBuilder: (BuildContext context, AutocompleteOnSelected<String> onSelected, Iterable<String> options) {
@@ -591,41 +586,41 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
             TextButton(
               child: const Text('Dissmiss'),
               onPressed: () {
-                 // ★ フォーカス制御削除
-                Navigator.of(dialogContext).pop();
+                Navigator.of(dialogContext).pop(false);
               },
             ),
             ElevatedButton(
               child: const Text('Save'),
               onPressed: () {
-                 // ★ フォーカス制御削除
                 final String newMemo = _editLogMemoController.text.trim();
                 if (mounted) {
                   setState(() {
                     _logs[logIndex].memo = newMemo;
                   });
                 }
-                Navigator.of(dialogContext).pop();
+                Navigator.of(dialogContext).pop(true);
               },
             ),
           ],
         );
       },
-    ).then((_) {
-        // ★ ダイアログが閉じたらフォーカスを外す（キーボード対策）
-        FocusScope.of(context).unfocus();
-    });
+    );
+
+    if (!mounted) return;
+    FocusScope.of(context).unfocus();
   }
 
   // セッション保存ダイアログ
   Future<void> _showSaveSessionDialog() async {
     if (_logs.isEmpty) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('保存するログがありません。')),
       );
       return;
     }
     if (_isRunning) {
+       if (!mounted) return;
        ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('まずストップウォッチを停止してください。')),
       );
@@ -639,7 +634,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
       context: context,
       barrierDismissible: true,
       builder: (BuildContext dialogContext) {
-        // ★ FocusNodeの明示的な管理を削除
         return AlertDialog(
           title: const Text('セッションを保存'),
           content: SingleChildScrollView(
@@ -648,19 +642,16 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
               children: <Widget>[
                 TextField(
                   controller: _sessionTitleController,
-                  // focusNode: titleFocusNode, // 削除
-                  autofocus: true, // ★ autofocusを有効化
+                  autofocus: true,
                   decoration: const InputDecoration(
                     labelText: "タイトル",
                     hintText: "セッションのタイトルを入力"
                   ),
                    textInputAction: TextInputAction.next,
-                   // ★ onSubmitted でのフォーカス移動を削除
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _sessionCommentController,
-                  // focusNode: commentFocusNode, // 削除
                   decoration: const InputDecoration(
                     labelText: "コメント (任意)",
                     hintText: "セッション全体に関するコメントを入力",
@@ -678,7 +669,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
             TextButton(
               child: const Text('キャンセル'),
               onPressed: () {
-                 // ★ フォーカス制御削除
                 Navigator.of(dialogContext).pop();
               },
             ),
@@ -689,10 +679,8 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
                    ScaffoldMessenger.of(dialogContext).showSnackBar(
                      const SnackBar(content: Text('タイトルは必須です。')),
                    );
-                   // ★ フォーカス制御削除
                    return;
                 }
-                 // ★ フォーカス制御削除
                 Navigator.of(dialogContext).pop({
                   'title': _sessionTitleController.text.trim(),
                   'comment': _sessionCommentController.text.trim(),
@@ -702,12 +690,10 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
           ],
         );
       },
-    ).then((value) {
-      // ★ ダイアログが閉じたらフォーカスを外す（キーボード対策）
-      FocusScope.of(context).unfocus();
-      return value;
-    });
+    );
 
+    if (!mounted) return;
+    FocusScope.of(context).unfocus();
 
     if (sessionData != null && sessionData['title'] != null && sessionData['title']!.isNotEmpty) {
       await _saveCurrentSession(sessionData['title']!, sessionData['comment']);
@@ -716,6 +702,8 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
 
   Future<void> _saveCurrentSession(String title, String? comment) async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+
     final String newSessionId = DateTime.now().millisecondsSinceEpoch.toString();
 
     final newSavedSession = SavedLogSession(
@@ -735,7 +723,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
             .map((jsonItem) => SavedLogSession.fromJson(jsonItem as Map<String, dynamic>))
             .toList();
       } catch (e) {
-        print('Error decoding saved sessions: $e');
+        // print('Error decoding saved sessions: $e'); // Consider using a logger
         savedSessions = [];
       }
     }
@@ -743,14 +731,13 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> {
     savedSessions.add(newSavedSession);
     savedSessions.sort((a, b) => b.saveDate.compareTo(a.saveDate));
 
-
     final String updatedSessionsJson = jsonEncode(savedSessions.map((s) => s.toJson()).toList());
     await prefs.setString(_savedSessionsKey, updatedSessionsJson);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('「$title」としてセッションを保存しました。')),
-      );
-    }
+    );
   }
 
 

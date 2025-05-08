@@ -1,3 +1,4 @@
+// saved_sessions_screen.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -35,14 +36,20 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
     }
 
     if (!mounted) return;
-    if (!_isLoading) {
+    if (!_isLoading) { // setState should only be called if _isLoading is changing
       setState(() {
         _isLoading = true;
       });
+    } else if (_isLoading == false && _savedSessions.isEmpty) { // Ensure loading is true if it's not already and we are about to load
+        setState(() {
+         _isLoading = true;
+        });
     }
 
 
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+
     final String? sessionsJson = prefs.getString(_savedSessionsKey);
     List<SavedLogSession> loadedSessions = [];
     if (sessionsJson != null && sessionsJson.isNotEmpty) {
@@ -53,7 +60,8 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
             .toList();
         loadedSessions.sort((a, b) => b.saveDate.compareTo(a.saveDate));
       } catch (e) {
-        print('Error decoding saved sessions on list screen: $e');
+        // ★ avoid_print: Consider using a logger. Commented out for now.
+        // print('Error decoding saved sessions on list screen: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('保存済みセッションの読み込みに失敗しました。')),
@@ -97,11 +105,15 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
       },
     );
 
+    if (!mounted) return;
+
     if (confirmDelete == true) {
       final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
+
       setState(() {
         _savedSessions.removeWhere((session) => session.id == sessionId);
-        _isLoading = true;
+        _isLoading = true; 
       });
       final String updatedSessionsJson = jsonEncode(_savedSessions.map((s) => s.toJson()).toList());
       await prefs.setString(_savedSessionsKey, updatedSessionsJson);
@@ -110,8 +122,10 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
          ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('セッションを削除しました。')),
         );
+        // Reload or set isLoading to false after operation
+        // To reflect changes immediately, we might want to call _loadSavedSessions or simply:
         setState(() {
-          _isLoading = false;
+          _isLoading = false; 
         });
       }
     }
@@ -151,7 +165,6 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
                       final session = _savedSessions[index];
                       final String formattedDate = DateFormat('yyyy/MM/dd HH:mm').format(session.saveDate);
 
-                      // ★ subtitle を修正: コメント表示部分を削除
                       Widget subtitleWidget = Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -165,21 +178,24 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
                         margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
                         child: ListTile(
                           title: Text(session.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: subtitleWidget, // ★ 修正した subtitle を設定
-                          // isThreeLine は不要に
+                          subtitle: subtitleWidget,
                           trailing: IconButton(
                             icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
                             tooltip: 'このセッションを削除',
                             onPressed: () => _deleteSession(session.id),
                           ),
                           onTap: () async {
-                            final result = await Navigator.push(
+                            // ★ unused_local_variable: `result` is not used.
+                            // final result = await Navigator.push(
+                            await Navigator.push( // Removed `result`
                               context,
                               MaterialPageRoute(
                                 builder: (context) => SessionDetailsScreen(session: session),
                               ),
                             );
-                            // VisibilityDetectorがリロードするので、ここでの処理は不要
+                            // ★ use_build_context_synchronously: Check mounted if context is used after await.
+                            // No context use here, so no check needed for this specific line.
+                            // VisibilityDetector will handle reload.
                           },
                         ),
                       );

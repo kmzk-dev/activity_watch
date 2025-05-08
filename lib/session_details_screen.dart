@@ -1,3 +1,4 @@
+// session_details_screen.dart
 import 'dart:convert'; // JSON処理のため
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -36,15 +37,13 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
   }
 
   Future<void> _showEditDialog() async {
-    // ダイアログ表示前に現在の値をコントローラーに設定
     _titleController.text = _editableSession.title;
     _commentController.text = _editableSession.sessionComment ?? '';
 
     final Map<String, String>? updatedData = await showDialog<Map<String, String>>(
       context: context,
-      barrierDismissible: true, // ダイアログ外タップで閉じる
+      barrierDismissible: true,
       builder: (BuildContext dialogContext) {
-        // ★ FocusNodeの定義を削除
         return AlertDialog(
           title: const Text('セッション情報を編集'),
           content: SingleChildScrollView(
@@ -53,19 +52,16 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
               children: <Widget>[
                 TextField(
                   controller: _titleController,
-                  // focusNode: titleFocusNode, // 削除
-                  autofocus: true, // ★ タイトル欄に自動フォーカス
+                  autofocus: true,
                   decoration: const InputDecoration(
                     labelText: "タイトル",
                     hintText: "セッションのタイトルを入力",
                   ),
-                   textInputAction: TextInputAction.next, // Enterで次のフィールドへ
-                   // onSubmitted: (_) => FocusScope.of(dialogContext).requestFocus(commentFocusNode), // 削除
+                   textInputAction: TextInputAction.next,
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _commentController,
-                  // focusNode: commentFocusNode, // 削除
                   decoration: const InputDecoration(
                     labelText: "コメント (任意)",
                     hintText: "セッション全体に関するコメントを入力",
@@ -74,7 +70,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                   keyboardType: TextInputType.multiline,
                   maxLines: null,
                   minLines: 3,
-                  textInputAction: TextInputAction.done, // 完了アクション
+                  textInputAction: TextInputAction.done,
                 ),
               ],
             ),
@@ -83,7 +79,6 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
             TextButton(
               child: const Text('キャンセル'),
               onPressed: () {
-                // ★ フォーカス制御削除
                 Navigator.of(dialogContext).pop();
               },
             ),
@@ -91,13 +86,11 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
               child: const Text('保存'),
               onPressed: () {
                 if (_titleController.text.trim().isEmpty) {
-                   ScaffoldMessenger.of(dialogContext).showSnackBar(
+                   ScaffoldMessenger.of(dialogContext).showSnackBar( // dialogContext is safe here
                      const SnackBar(content: Text('タイトルは必須です。')),
                    );
-                   // ★ フォーカス制御削除
                    return;
                 }
-                // ★ フォーカス制御削除
                 Navigator.of(dialogContext).pop({
                   'title': _titleController.text.trim(),
                   'comment': _commentController.text.trim(),
@@ -107,12 +100,11 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
           ],
         );
       },
-    ).then((value) {
-        // ★ ダイアログが閉じた後のフォーカス解除（キーボード対策）は残す
-        FocusScope.of(context).unfocus();
-        return value;
-    });
+    );
 
+    // ★ use_build_context_synchronously: `mounted` check after await
+    if (!mounted) return;
+    FocusScope.of(context).unfocus(); // Unfocus after dialog closes, regardless of result.
 
     if (updatedData != null && updatedData['title'] != null) {
       final newTitle = updatedData['title']!;
@@ -126,20 +118,19 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
           );
         });
         await _updateSessionInStorage();
+         // ★ use_build_context_synchronously: `mounted` check
          if (mounted) {
-           // ★ フォーカス制御削除
            Navigator.pop(context, true); // 変更があったことを伝える
         }
       }
     }
-     // ★ ダイアログがキャンセルされた場合もフォーカス解除
-     else {
-        FocusScope.of(context).unfocus();
-     }
   }
 
   Future<void> _updateSessionInStorage() async {
     final prefs = await SharedPreferences.getInstance();
+    // ★ use_build_context_synchronously: `mounted` check
+    if(!mounted) return;
+
     final String? sessionsJson = prefs.getString(_savedSessionsKey);
     List<SavedLogSession> allSessions = [];
 
@@ -150,8 +141,9 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
             .map((jsonItem) => SavedLogSession.fromJson(jsonItem as Map<String, dynamic>))
             .toList();
       } catch (e) {
-        print('Error decoding saved sessions for update: $e');
-        if (mounted) {
+        // ★ avoid_print: Consider using a logger. Commented out for now.
+        // print('Error decoding saved sessions for update: $e');
+        if (mounted) { // mounted check before ScaffoldMessenger
             ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('セッションデータの読み込みに失敗し、更新できませんでした。')),
             );
@@ -165,12 +157,14 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
       allSessions[sessionIndex] = _editableSession;
       final String updatedSessionsJson = jsonEncode(allSessions.map((s) => s.toJson()).toList());
       await prefs.setString(_savedSessionsKey, updatedSessionsJson);
+      // ★ use_build_context_synchronously: `mounted` check
       if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('セッション情報を更新しました。')),
           );
       }
     } else {
+        // ★ use_build_context_synchronously: `mounted` check
         if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('更新対象のセッションが見つかりませんでした。')),
@@ -184,7 +178,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
     final theme = Theme.of(context);
     final dataTableTheme = theme.dataTableTheme;
     final headingTextStyle = dataTableTheme.headingTextStyle ??
-        const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 14);
+        const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 14); // Default style
     return Container(
       decoration: BoxDecoration(
         border: Border(
@@ -217,14 +211,17 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
   Widget _buildLogRow(BuildContext context, LogEntry log) {
     final theme = Theme.of(context);
     final dataTableTheme = theme.dataTableTheme;
-    final dataRowMinHeight = dataTableTheme.dataRowMinHeight ?? 48.0;
+    final dataRowMinHeight = dataTableTheme.dataRowMinHeight ?? 48.0; // Default value
+    // ★ deprecated_member_use: Replace withOpacity with withAlpha or Color.fromRGBO
+    final borderColor = theme.dividerColor.withAlpha(128); // 0.5 opacity approx 128 alpha
+
     return Container(
       constraints: BoxConstraints(minHeight: dataRowMinHeight),
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: theme.dividerColor.withOpacity(0.5),
+            color: borderColor, // Use the modified color
             width: 0.5,
           ),
         ),
