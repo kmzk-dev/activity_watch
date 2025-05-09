@@ -1,25 +1,30 @@
 // main.dart
 import 'package:flutter/material.dart';
-import 'theme/app_theme.dart';
-import 'screens/saved_sessions_screen.dart';
-import 'screens/stopwatch_screen.dart';
+import 'theme/app_theme.dart'; // アプリのテーマ設定をインポート
+import 'screens/saved_sessions_screen.dart'; // 保存済みセッション画面をインポート
+import 'screens/stopwatch_screen.dart'; // ストップウォッチ画面をインポート
+
+// アプリケーションのエントリーポイント
 void main() {
   runApp(const ActivityWatchApp());
 }
 
+// ルートウィジェット
 class ActivityWatchApp extends StatelessWidget {
   const ActivityWatchApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      theme: appThemeData,
-      home: const AppShell(),
-      debugShowCheckedModeBanner: false,
+      title: 'Activity Watch', // アプリのタイトル
+      theme: appThemeData, // アプリのテーマを適用
+      home: const AppShell(), // メインの画面構造
+      debugShowCheckedModeBanner: false, // デバッグバナーを非表示
     );
   }
 }
 
+// アプリケーションの主要な構造（シェル）を定義するStatefulWidget
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
 
@@ -27,39 +32,50 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
+// AppShellのStateクラス
 class _AppShellState extends State<AppShell> {
-  int _selectedIndex = 0;
+  int _selectedIndex = 0; // 現在選択されているタブのインデックス
 
+  // 各タブに対応するウィジェットのリスト
+  // このリスト内のウィジェットはIndexedStackによって状態が保持される
   static const List<Widget> _widgetOptions = <Widget>[
-    StopwatchScreenWidget(),
-    SavedSessionsScreen(), // SavedLogSession を使用する可能性あり
+    StopwatchScreenWidget(), // 計測タブの画面
+    SavedSessionsScreen(), // 履歴タブの画面
   ];
 
+  // BottomNavigationBarのアイテムがタップされたときの処理
   void _onItemTapped(int index) {
     setState(() {
-      _selectedIndex = index;
+      _selectedIndex = index; // 選択されたタブのインデックスを更新
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: _widgetOptions.elementAt(_selectedIndex),
+      // IndexedStackを使用することで、タブを切り替えても各画面の状態が保持される
+      // indexプロパティで現在表示するウィジェットを指定し、
+      // childrenプロパティに表示候補のウィジェットリストを渡す
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _widgetOptions,
       ),
+      // 下部のナビゲーションバー
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
+          // 計測タブのアイテム
           BottomNavigationBarItem(
-            icon: Icon(Icons.timer_outlined),
-            label: '計測',
+            icon: Icon(Icons.timer_outlined), // アイコン
+            label: '計測', // ラベル
           ),
+          // 履歴タブのアイテム
           BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: '履歴',
+            icon: Icon(Icons.history), // アイコン
+            label: '履歴', // ラベル
           ),
         ],
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
+        currentIndex: _selectedIndex, // 現在選択されているアイテムのインデックス
+        onTap: _onItemTapped, // アイテムがタップされたときのコールバック
       ),
     );
   }
