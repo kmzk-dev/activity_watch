@@ -1,13 +1,15 @@
 // session_details_screen.dart
-import 'dart:convert'; // JSON処理のため (session_storage.dartに移動するため、このファイルでは不要になる可能性)
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-// SharedPreferencesはsession_storage.dartで扱われるため、このファイルでは直接不要になる可能性
-// import 'package:shared_preferences/shared_preferences.dart';
 import '../models/log_entry.dart'; // LogEntryモデルをインポート
 import '../models/saved_log_session.dart'; // SavedLogSessionモデルをインポート
-import '../utils/session_dialog_utils.dart'; // 共通ダイアログ関数をインポート
-import '../utils/session_storage.dart'; // 共通ストレージ関数をインポート (updateSession を利用)
+import '../utils/session_dialog_utils.dart'; // 共通セッション編集ダイアログ関数をインポート
+import '../utils/dialog_utils.dart'; // ログ編集ダイアログ関数をインポート
+import '../utils/session_storage.dart'; // 共通ストレージ関数をインポート
+import '../screens/widgets/log_table.dart'; // LogTableウィジェットをインポート
+import '../theme/color_constants.dart'; // カラーラベル定義をインポート
+import '../utils/string_utils.dart'; // 文字列ユーティリティ (カタカナ→ひらがな変換) をインポート
+// import 'package:shared_preferences/shared_preferences.dart'; // サジェスチョン読み込みに必要なら
 
 // セッション詳細を表示するStatefulWidget
 class SessionDetailsScreen extends StatefulWidget {
@@ -21,24 +23,35 @@ class SessionDetailsScreen extends StatefulWidget {
 
 class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
   late SavedLogSession _editableSession; // 編集可能なセッションデータ
+  List<String> _commentSuggestions = []; // コメントサジェスチョン (今回は空のまま)
+  // static const String _suggestionsKey = 'comment_suggestions'; // サジェスチョン用
 
-  static const String _savedSessionsKey = 'saved_log_sessions'; // SharedPreferencesのキー (session_storage.dartと共通)
+  static const String _savedSessionsKey = 'saved_log_sessions'; // SharedPreferencesのキー
 
   @override
   void initState() {
     super.initState();
     // widgetから渡されたセッションデータを編集可能データとして初期化
-    _editableSession = widget.session;
+    _editableSession = widget.session.copyWith(); // 念のためコピーを作成
+    // _loadSuggestions(); // 必要であればサジェスチョンを読み込む
   }
 
-  // disposeメソッドは特に変更なし
   @override
   void dispose() {
     super.dispose();
   }
 
-  // セッション情報を編集するためのダイアログを表示する非同期関数
-  Future<void> _showEditDialog() async {
+  // // 必要であればコメントサジェスチョンを読み込む関数 (stopwatch_screen.dart を参考)
+  // Future<void> _loadSuggestions() async {
+  //   final SharedPreferences prefs = await SharedPreferences.getInstance();
+  //   if (!mounted) return;
+  //   setState(() {
+  //     _commentSuggestions = prefs.getStringList(_suggestionsKey) ?? [];
+  //   });
+  // }
+
+  // セッション全体の情報を編集するためのダイアログを表示する非同期関数
+  Future<void> _showEditSessionDialog() async {
     final Map<String, String>? updatedData = await showSessionDetailsInputDialog(
       context: context,
       dialogTitle: 'セッション情報を編集',
@@ -62,20 +75,45 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
             sessionComment: newComment,
           );
         });
-        // ストレージ内のセッション情報を更新 (session_storage.dartの関数を呼び出す)
         await _updateSessionInStorage();
-        // mountedプロパティを確認後、画面遷移は行わない
-        if (mounted) {
-          // Navigator.pop(context, true); // この行をコメントアウトまたは削除することで、現在の画面に留まります。
-          // 変更があったことを前の画面に伝える必要がもしあれば、別の方法を検討します。
-          // (例: Provider, Riverpod, BLoCなどの状態管理ライブラリで状態を共有・通知する)
-          // 今回は「ページにとどめる」が要件のため、popしません。
-        }
       }
     }
   }
 
-  // ストレージ内のセッション情報を更新する非同期関数 (session_storage.dartの関数を利用)
+  // 個別のログエントリを編集するためのダイアログを表示する非同期関数
+  Future<void> _editLogEntry(int logIndex) async {
+    if (logIndex < 0 || logIndex >= _editableSession.logEntries.length) return;
+
+    final LogEntry currentLog = _editableSession.logEntries[logIndex];
+
+    final Map<String, String>? result = await showLogCommentEditDialog(
+      context: context,
+      initialMemo: currentLog.memo,
+      initialColorLabelName: currentLog.colorLabelName,
+      commentSuggestions: _commentSuggestions,
+      katakanaToHiraganaConverter: katakanaToHiragana,
+      availableColorLabels: colorLabels,
+    );
+
+    if (!mounted) return;
+
+    if (result != null) {
+      final String newMemo = result['memo'] ?? currentLog.memo;
+      final String newColorLabel = result['colorLabel'] ?? currentLog.colorLabelName;
+
+      if (newMemo != currentLog.memo || newColorLabel != currentLog.colorLabelName) {
+        setState(() {
+          _editableSession.logEntries[logIndex].memo = newMemo;
+          _editableSession.logEntries[logIndex].colorLabelName = newColorLabel;
+        });
+        await _updateSessionInStorage();
+      }
+    }
+    FocusScope.of(context).unfocus();
+  }
+
+
+  // ストレージ内のセッション情報を更新する非同期関数
   Future<void> _updateSessionInStorage() async {
     final bool success = await updateSession(
       context: context,
@@ -85,95 +123,10 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
 
     if (!mounted) return;
     if (success) {
-      // print('セッションの更新に成功しました。'); // デバッグ用
       // SnackBarは updateSession 関数内で表示される想定
     } else {
-      // print('セッションの更新に失敗しました。'); // デバッグ用
       // SnackBarは updateSession 関数内で表示される想定
     }
-  }
-
-  // ログテーブルのヘッダーを構築するウィジェット (変更なし)
-  Widget _buildLogTableHeader(BuildContext context) {
-    final theme = Theme.of(context);
-    final dataTableTheme = theme.dataTableTheme;
-    final headingTextStyle = dataTableTheme.headingTextStyle ??
-        const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-            fontSize: 14);
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: theme.dividerColor,
-            width: 1.0,
-          ),
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            flex: 2,
-            child: Text('START', style: headingTextStyle),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text('END', style: headingTextStyle),
-          ),
-          Expanded(
-            flex: 3,
-            child: Text('COMMENT', style: headingTextStyle),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ログテーブルの各行を構築するウィジェット (変更なし)
-  Widget _buildLogRow(BuildContext context, LogEntry log) {
-    final theme = Theme.of(context);
-    final dataTableTheme = theme.dataTableTheme;
-    final dataRowMinHeight =
-        dataTableTheme.dataRowMinHeight ?? 48.0;
-    final borderColor = theme.dividerColor.withAlpha(128);
-
-    return Container(
-      constraints: BoxConstraints(minHeight: dataRowMinHeight),
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: borderColor,
-            width: 0.5,
-          ),
-        ),
-      ),
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            flex: 2,
-            child: Text(log.startTime),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(log.endTime),
-          ),
-          Expanded(
-            flex: 3,
-            child: Tooltip(
-              message: log.memo,
-              child: Text(
-                log.memo,
-                overflow: TextOverflow.ellipsis,
-                maxLines: 2,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -183,11 +136,12 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        // title: Text(_editableSession.title, style: const TextStyle(fontSize: 18)), // AppBarのタイトルを削除
         actions: [
           IconButton(
             icon: const Icon(Icons.edit),
             tooltip: 'セッション情報を編集',
-            onPressed: _showEditDialog,
+            onPressed: _showEditSessionDialog,
           ),
         ],
       ),
@@ -199,6 +153,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // セッションタイトルを本文中に表示
                 Text(
                   _editableSession.title,
                   style: Theme.of(context).textTheme.titleLarge,
@@ -232,16 +187,12 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
               ],
             ),
           ),
-          _buildLogTableHeader(context),
           Expanded(
             child: _editableSession.logEntries.isEmpty
                 ? const Center(child: Text('このセッションにはログがありません。'))
-                : ListView.builder(
-                    itemCount: _editableSession.logEntries.length,
-                    itemBuilder: (context, index) {
-                      final log = _editableSession.logEntries[index];
-                      return _buildLogRow(context, log);
-                    },
+                : LogTable(
+                    logs: _editableSession.logEntries,
+                    onEditLog: _editLogEntry,
                   ),
           ),
         ],
