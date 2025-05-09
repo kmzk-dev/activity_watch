@@ -307,7 +307,7 @@ Future<Map<String, dynamic>?> showAddNewLogDialog({
         Tooltip(
           message: '保存して記録を続ける',
           child: IconButton(
-            icon: Icon(Icons.save, color: Theme.of(dialogContext).colorScheme.primary, size: 28),
+            icon: Icon(Icons.edit_note, color: Theme.of(dialogContext).colorScheme.primary, size: 28),
             onPressed: () {
               String memo = memoCtrl.text.trim();
               if (memo.isEmpty) memo = '(ラップを記録)';
