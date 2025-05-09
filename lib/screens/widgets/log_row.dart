@@ -33,7 +33,10 @@ class LogRow extends StatelessWidget {
           // 「END」列 (ログの終了時刻)
           Expanded(
             flex: 2, // Row内の占有スペースの割合
-            child: Text(log.endTime),
+            child: Text(
+              log.endTime,
+              style: TextStyle(color: log.labelColor), // ラベルの色を適用
+            ),
           ),
           // 「COMMENT」列 (ログのメモ)
           Expanded(
@@ -51,7 +54,10 @@ class LogRow extends StatelessWidget {
           // 「ELAPSED」列 (ログの経過時間)
           Expanded(
             flex: 3, // Row内の占有スペースの割合
-            child: Text(log.elapsedTime),
+            child: Text(
+              log.elapsedTime,
+              style: TextStyle(color: log.labelColor), // ラベルの色を適用
+            ),
           ),
           // 編集ボタン
           SizedBox(
