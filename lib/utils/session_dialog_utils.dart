@@ -54,7 +54,7 @@ Future<Map<String, String>?> showSessionDetailsInputDialog({
                   keyboardType: TextInputType.multiline, // 複数行入力可能
                   maxLines: null, // 内容に応じて高さを自動調整
                   minLines: 3, // 最小3行分の高さを確保
-                  textInputAction: TextInputAction.done, // 入力完了アクション
+                  textInputAction: TextInputAction.newline, 
                 ),
               ],
             ),

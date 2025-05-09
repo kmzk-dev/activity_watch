@@ -1,14 +1,17 @@
 // session_details_screen.dart
-import 'dart:convert'; // JSON処理のため
+import 'dart:convert'; // JSON処理のため (session_storage.dartに移動するため、このファイルでは不要になる可能性)
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // SharedPreferencesのため
-import '../models/log_entry.dart';
-import '../models/saved_log_session.dart';
+// SharedPreferencesはsession_storage.dartで扱われるため、このファイルでは直接不要になる可能性
+// import 'package:shared_preferences/shared_preferences.dart';
+import '../models/log_entry.dart'; // LogEntryモデルをインポート
+import '../models/saved_log_session.dart'; // SavedLogSessionモデルをインポート
+import '../utils/session_dialog_utils.dart'; // 共通ダイアログ関数をインポート
+import '../utils/session_storage.dart'; // 共通ストレージ関数をインポート (updateSession を利用)
 
-
+// セッション詳細を表示するStatefulWidget
 class SessionDetailsScreen extends StatefulWidget {
-  final SavedLogSession session;
+  final SavedLogSession session; // 表示するセッションデータ
 
   const SessionDetailsScreen({super.key, required this.session});
 
@@ -17,170 +20,88 @@ class SessionDetailsScreen extends StatefulWidget {
 }
 
 class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
-  late SavedLogSession _editableSession;
-  final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _commentController = TextEditingController();
+  late SavedLogSession _editableSession; // 編集可能なセッションデータ
 
-  static const String _savedSessionsKey = 'saved_log_sessions'; // main.dart と共通
+  static const String _savedSessionsKey = 'saved_log_sessions'; // SharedPreferencesのキー (session_storage.dartと共通)
 
   @override
   void initState() {
     super.initState();
+    // widgetから渡されたセッションデータを編集可能データとして初期化
     _editableSession = widget.session;
-    _titleController.text = _editableSession.title;
-    _commentController.text = _editableSession.sessionComment ?? '';
   }
 
+  // disposeメソッドは特に変更なし
   @override
   void dispose() {
-    _titleController.dispose();
-    _commentController.dispose();
     super.dispose();
   }
 
+  // セッション情報を編集するためのダイアログを表示する非同期関数
   Future<void> _showEditDialog() async {
-    _titleController.text = _editableSession.title;
-    _commentController.text = _editableSession.sessionComment ?? '';
-
-    final Map<String, String>? updatedData = await showDialog<Map<String, String>>(
+    final Map<String, String>? updatedData = await showSessionDetailsInputDialog(
       context: context,
-      barrierDismissible: true,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('セッション情報を編集'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                TextField(
-                  controller: _titleController,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: "タイトル",
-                    hintText: "セッションのタイトルを入力",
-                  ),
-                   textInputAction: TextInputAction.next,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _commentController,
-                  decoration: const InputDecoration(
-                    labelText: "コメント (任意)",
-                    hintText: "セッション全体に関するコメントを入力",
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.multiline,
-                  maxLines: null,
-                  minLines: 3,
-                  textInputAction: TextInputAction.done,
-                ),
-              ],
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('キャンセル'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-            ),
-            TextButton(
-              child: const Text('保存'),
-              onPressed: () {
-                if (_titleController.text.trim().isEmpty) {
-                   ScaffoldMessenger.of(dialogContext).showSnackBar( // dialogContext is safe here
-                     const SnackBar(content: Text('タイトルは必須です。')),
-                   );
-                   return;
-                }
-                Navigator.of(dialogContext).pop({
-                  'title': _titleController.text.trim(),
-                  'comment': _commentController.text.trim(),
-                });
-              },
-            ),
-          ],
-        );
-      },
+      dialogTitle: 'セッション情報を編集',
+      initialTitle: _editableSession.title,
+      initialComment: _editableSession.sessionComment ?? '',
+      positiveButtonText: '更新',
     );
 
-    // ★ use_build_context_synchronously: `mounted` check after await
     if (!mounted) return;
-    FocusScope.of(context).unfocus(); // Unfocus after dialog closes, regardless of result.
+    FocusScope.of(context).unfocus();
 
     if (updatedData != null && updatedData['title'] != null) {
       final newTitle = updatedData['title']!;
       final newComment = updatedData['comment'];
 
-      if (newTitle != _editableSession.title || (newComment ?? '') != (_editableSession.sessionComment ?? '')) {
+      if (newTitle != _editableSession.title ||
+          (newComment ?? '') != (_editableSession.sessionComment ?? '')) {
         setState(() {
           _editableSession = _editableSession.copyWith(
             title: newTitle,
             sessionComment: newComment,
           );
         });
+        // ストレージ内のセッション情報を更新 (session_storage.dartの関数を呼び出す)
         await _updateSessionInStorage();
-         // ★ use_build_context_synchronously: `mounted` check
-         if (mounted) {
-           Navigator.pop(context, true); // 変更があったことを伝える
-        }
-      }
-    }
-  }
-
-  Future<void> _updateSessionInStorage() async {
-    final prefs = await SharedPreferences.getInstance();
-    // ★ use_build_context_synchronously: `mounted` check
-    if(!mounted) return;
-
-    final String? sessionsJson = prefs.getString(_savedSessionsKey);
-    List<SavedLogSession> allSessions = [];
-
-    if (sessionsJson != null && sessionsJson.isNotEmpty) {
-      try {
-        final List<dynamic> decodedList = jsonDecode(sessionsJson) as List<dynamic>;
-        allSessions = decodedList
-            .map((jsonItem) => SavedLogSession.fromJson(jsonItem as Map<String, dynamic>))
-            .toList();
-      } catch (e) {
-        // ★ avoid_print: Consider using a logger. Commented out for now.
-        // print('Error decoding saved sessions for update: $e');
-        if (mounted) { // mounted check before ScaffoldMessenger
-            ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('セッションデータの読み込みに失敗し、更新できませんでした。')),
-            );
-        }
-        return;
-      }
-    }
-
-    final int sessionIndex = allSessions.indexWhere((s) => s.id == _editableSession.id);
-    if (sessionIndex != -1) {
-      allSessions[sessionIndex] = _editableSession;
-      final String updatedSessionsJson = jsonEncode(allSessions.map((s) => s.toJson()).toList());
-      await prefs.setString(_savedSessionsKey, updatedSessionsJson);
-      // ★ use_build_context_synchronously: `mounted` check
-      if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('セッション情報を更新しました。')),
-          );
-      }
-    } else {
-        // ★ use_build_context_synchronously: `mounted` check
+        // mountedプロパティを確認後、画面遷移は行わない
         if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('更新対象のセッションが見つかりませんでした。')),
-            );
+          // Navigator.pop(context, true); // この行をコメントアウトまたは削除することで、現在の画面に留まります。
+          // 変更があったことを前の画面に伝える必要がもしあれば、別の方法を検討します。
+          // (例: Provider, Riverpod, BLoCなどの状態管理ライブラリで状態を共有・通知する)
+          // 今回は「ページにとどめる」が要件のため、popしません。
         }
+      }
     }
   }
 
+  // ストレージ内のセッション情報を更新する非同期関数 (session_storage.dartの関数を利用)
+  Future<void> _updateSessionInStorage() async {
+    final bool success = await updateSession(
+      context: context,
+      updatedSession: _editableSession,
+      savedSessionsKey: _savedSessionsKey,
+    );
 
+    if (!mounted) return;
+    if (success) {
+      // print('セッションの更新に成功しました。'); // デバッグ用
+      // SnackBarは updateSession 関数内で表示される想定
+    } else {
+      // print('セッションの更新に失敗しました。'); // デバッグ用
+      // SnackBarは updateSession 関数内で表示される想定
+    }
+  }
+
+  // ログテーブルのヘッダーを構築するウィジェット (変更なし)
   Widget _buildLogTableHeader(BuildContext context) {
     final theme = Theme.of(context);
     final dataTableTheme = theme.dataTableTheme;
     final headingTextStyle = dataTableTheme.headingTextStyle ??
-        const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 14); // Default style
+        const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+            fontSize: 14);
     return Container(
       decoration: BoxDecoration(
         border: Border(
@@ -210,12 +131,13 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
     );
   }
 
+  // ログテーブルの各行を構築するウィジェット (変更なし)
   Widget _buildLogRow(BuildContext context, LogEntry log) {
     final theme = Theme.of(context);
     final dataTableTheme = theme.dataTableTheme;
-    final dataRowMinHeight = dataTableTheme.dataRowMinHeight ?? 48.0; // Default value
-    // ★ deprecated_member_use: Replace withOpacity with withAlpha or Color.fromRGBO
-    final borderColor = theme.dividerColor.withAlpha(128); // 0.5 opacity approx 128 alpha
+    final dataRowMinHeight =
+        dataTableTheme.dataRowMinHeight ?? 48.0;
+    final borderColor = theme.dividerColor.withAlpha(128);
 
     return Container(
       constraints: BoxConstraints(minHeight: dataRowMinHeight),
@@ -223,7 +145,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: borderColor, // Use the modified color
+            color: borderColor,
             width: 0.5,
           ),
         ),
@@ -256,7 +178,8 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final String formattedDate = DateFormat('yyyy/MM/dd HH:mm').format(_editableSession.saveDate);
+    final String formattedDate =
+        DateFormat('yyyy/MM/dd HH:mm').format(_editableSession.saveDate);
 
     return Scaffold(
       appBar: AppBar(
@@ -283,12 +206,15 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Icon(Icons.calendar_month_outlined, size: 16, color: Colors.grey[700]),
+                    Icon(Icons.calendar_month_outlined,
+                        size: 16, color: Colors.grey[700]),
                     const SizedBox(width: 6),
-                    Text(formattedDate, style: Theme.of(context).textTheme.titleSmall),
+                    Text(formattedDate,
+                        style: Theme.of(context).textTheme.titleSmall),
                   ],
                 ),
-                if (_editableSession.sessionComment != null && _editableSession.sessionComment!.isNotEmpty) ...[
+                if (_editableSession.sessionComment != null &&
+                    _editableSession.sessionComment!.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(8.0),

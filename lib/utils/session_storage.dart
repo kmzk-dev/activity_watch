@@ -59,3 +59,54 @@ Future<void> saveSession({
     );
   }
 }
+
+// lib/utils/session_storage.dart (追加する関数のイメージ)
+Future<bool> updateSession({
+  required BuildContext context, // SnackBar表示のため
+  required SavedLogSession updatedSession, // 更新するセッションデータ
+  required String savedSessionsKey, // SharedPreferencesのキー
+}) async {
+  final prefs = await SharedPreferences.getInstance();
+  final String? sessionsJson = prefs.getString(savedSessionsKey);
+  List<SavedLogSession> allSessions = [];
+
+  if (sessionsJson != null && sessionsJson.isNotEmpty) {
+    try {
+      final List<dynamic> decodedList = jsonDecode(sessionsJson) as List<dynamic>;
+      allSessions = decodedList
+          .map((jsonItem) =>
+              SavedLogSession.fromJson(jsonItem as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      // ignore: use_build_context_synchronously
+      if (!context.mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('セッションデータの読み込みに失敗しました。')),
+      );
+      return false;
+    }
+  }
+
+  final int sessionIndex =
+      allSessions.indexWhere((s) => s.id == updatedSession.id);
+
+  if (sessionIndex != -1) {
+    allSessions[sessionIndex] = updatedSession;
+    final String updatedSessionsJson =
+        jsonEncode(allSessions.map((s) => s.toJson()).toList());
+    await prefs.setString(savedSessionsKey, updatedSessionsJson);
+    // ignore: use_build_context_synchronously
+    if (!context.mounted) return true; // 保存は成功したが、contextがunmountされた場合
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('セッション情報を更新しました。')),
+    );
+    return true;
+  } else {
+    // ignore: use_build_context_synchronously
+    if (!context.mounted) return false;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('更新対象のセッションが見つかりませんでした。')),
+    );
+    return false;
+  }
+}
