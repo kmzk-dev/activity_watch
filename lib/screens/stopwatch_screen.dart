@@ -141,7 +141,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       actualSessionStartTime: _currentActualSessionStartTime!,
       startTime: startTime,
       endTime: currentTimeForLog,
-      memo: '(活動終了)', // 固定コメント
+      memo: '', // ダミーコメントを削除し、空文字を設定
       colorLabelName: colorLabels.keys.first, // デフォルトの色ラベル
     );
     newLog.calculateDuration();
@@ -172,7 +172,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       actualSessionStartTime: _currentActualSessionStartTime!,
       startTime: startTime,
       endTime: currentTimeForLog, // 正確な終了時刻
-      memo: '(ラップ記録)', // 固定コメント
+      memo: '', // ダミーコメントを削除し、空文字を設定
       colorLabelName: colorLabels.keys.first, // デフォルトの色ラベル
     );
     newLog.calculateDuration(); // LogEntry内部のdurationもこれで計算される
@@ -186,26 +186,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     }
   }
 
-  // _stopCounter は showAddNewLogDialog の 'stop' action でのみ使われる想定だったが、
-  // showAddNewLogDialog をラップ記録で使わなくなったため、このメソッドは現在どこからも呼び出されていない。
-  // 必要に応じて削除または再評価。
-  // void _stopCounter() {
-  //   if (mounted) {
-  //     setState(() {
-  //       if (_isRunning) {
-  //         _timer?.cancel();
-  //         _stopwatch.stop(); // Stopwatchを停止
-  //         _isRunning = false;
-  //         // 最終的な経過時間を絶対開始時刻からの差分で確定
-  //         if (_currentActualSessionStartTime != null) {
-  //           _elapsedTime = formatDisplayTime(DateTime.now().difference(_currentActualSessionStartTime!));
-  //         }
-  //       }
-  //     });
-  //   }
-  // }
-
-
   Future<void> _showEditLogDialog(int logIndex) async {
     // ログ編集時にはサジェスチョンが必要なため、ロード処理を呼び出す
     await loadSuggestionsFromPrefs(force: true);
@@ -215,7 +195,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
 
     final Map<String, String>? result = await showLogCommentEditDialog(
       context: context,
-      initialMemo: currentLog.memo,
+      initialMemo: currentLog.memo, // ここで渡される memo が空文字になる
       initialColorLabelName: currentLog.colorLabelName,
       commentSuggestions: _commentSuggestions, // ここでサジェスチョンリストを渡す
       katakanaToHiraganaConverter: katakanaToHiragana,
