@@ -70,14 +70,21 @@ Widget _buildSharedLogInputFields({
               FilteringTextInputFormatter.deny(RegExp(r'[\n\r]')),
             ],
             onChanged: (text) {
+              // AutocompleteのfieldViewBuilder内でmemoControllerを直接更新する代わりに、
+              // AutocompleteのonSelectedや、このTextFieldのonSubmitted/onChangedで
+              // 最終的な値をmemoControllerに反映する。
+              // ここでは、ユーザーが入力するたびにmemoControllerにも反映させる。
               memoController.text = text;
             },
             onSubmitted: (_) {
+              // AutocompleteのonFieldSubmittedを呼び出して、
+              // 選択肢がない場合やEnterキーでのサブミットを処理
               onFieldSubmitted();
             },
           );
         },
         optionsViewBuilder: (BuildContext context, AutocompleteOnSelected<String> onSelected, Iterable<String> options) {
+          // サジェスト候補がない、かつテキストフィールドにフォーカスがある場合は何も表示しない
           if (options.isEmpty && FocusScope.of(context).hasFocus) { 
              return const SizedBox.shrink(); 
           }
@@ -86,6 +93,8 @@ Widget _buildSharedLogInputFields({
             child: Material(
               elevation: 4.0,
               child: ConstrainedBox(
+                // サジェストボックスの最大幅をダイアログ幅の80%からパディング分を引いた値に調整
+                // maxWidth: MediaQuery.of(context).size.width * 0.8 - 48, // dialogContextではなくcontextを使用
                 constraints: BoxConstraints(maxHeight: 200, maxWidth: MediaQuery.of(context).size.width * 0.8 - 48),
                 child: ListView.builder(
                   padding: EdgeInsets.zero,
@@ -113,40 +122,42 @@ Widget _buildSharedLogInputFields({
       ),
       const SizedBox(height: 8),
       Wrap(
-        spacing: 8.0, 
-        runSpacing: 8.0, 
+        spacing: 8.0, // 横方向のスペース
+        runSpacing: 8.0, // 縦方向のスペース（折り返し時）
         children: availableColorLabels.keys.map((String labelName) {
           final bool isSelected = labelName == selectedColorLabel;
+          // availableColorLabels から Color オブジェクトを取得。存在しない場合はデフォルト色（例: Colors.grey）
           final Color labelActualColor = availableColorLabels[labelName] ?? Colors.grey; 
 
+          // ラベルの色に基づいて選択時の文字色を決定 (暗い背景なら白文字、明るい背景なら黒文字)
           final Brightness colorBrightness = ThemeData.estimateBrightnessForColor(labelActualColor);
           final Color selectedForegroundColor = colorBrightness == Brightness.dark ? Colors.white : Colors.black;
           
           return SizedBox(
-            width: 85.0, 
+            width: 85.0, // ボタンの幅を固定または適切に調整
             child: ElevatedButton(
               onPressed: () {
                 onColorLabelChanged(labelName);
               },
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0), 
-                backgroundColor: isSelected ? labelActualColor : Colors.transparent, 
-                foregroundColor: isSelected ? selectedForegroundColor : labelActualColor, 
-                elevation: isSelected ? 2.0 : 0.0, 
+                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0), // 内側のパディングを調整
+                backgroundColor: isSelected ? labelActualColor : Colors.transparent, // 選択時は背景色、非選択時は透明
+                foregroundColor: isSelected ? selectedForegroundColor : labelActualColor, // 選択時は計算された文字色、非選択時はラベル色
+                elevation: isSelected ? 2.0 : 0.0, // 選択されている場合は少し浮かせる
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16.0), 
+                  borderRadius: BorderRadius.circular(16.0), // 角丸の半径
                   side: BorderSide(
-                    color: labelActualColor, 
-                    width: 1.5, 
+                    color: labelActualColor, // 枠線の色をラベルの色に
+                    width: 1.5, // 枠線の太さ
                   ),
                 ),
-                minimumSize: const Size(0, 32), 
+                minimumSize: const Size(0, 32), // ボタンの最小サイズを調整
               ),
-              child: Text( 
+              child: Text( // ラベル名が長い場合に省略表示
                 labelName,
-                style: const TextStyle(fontSize: 13),
-                overflow: TextOverflow.ellipsis, 
-                textAlign: TextAlign.center, 
+                style: const TextStyle(fontSize: 13), // フォントサイズを少し小さく
+                overflow: TextOverflow.ellipsis, // はみ出したテキストを省略記号で表示
+                textAlign: TextAlign.center, // 中央揃え
               ),
             ),
           );
@@ -171,23 +182,31 @@ Future<Map<String, dynamic>?> _showCoreLogInputDialog({
     TextEditingController memoController, 
     String selectedColorLabel
   ) actionsBuilder,
-  bool autofocusMemoField = true,
+  bool autofocusMemoField = true, // メモフィールドに自動フォーカスするかのフラグ
 }) async {
   final TextEditingController memoController = TextEditingController(text: initialMemo);
   String selectedColorInDialog = initialColorLabel;
+  // final FocusNode memoFocusNode = FocusNode(); // フォーカスノードを作成
+
+  // WidgetsBinding.instance.addPostFrameCallback((_) {
+  //   if (autofocusMemoField) {
+  //     // memoFocusNode.requestFocus();
+  //   }
+  // });
 
   return await showDialog<Map<String, dynamic>?>(
     context: context,
-    barrierDismissible: true,
+    barrierDismissible: true, // ダイアログ外タップで閉じるのを許可
     builder: (BuildContext dialogContext) {
+      // AlertDialog内で状態を管理するためにStatefulBuilderを使用
       return StatefulBuilder(
         builder: (BuildContext context, StateSetter setStateDialog) {
           return AlertDialog(
             title: Text(dialogTitle),
-            contentPadding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 0),
+            contentPadding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 0), // 下パディングを0に
             content: SizedBox(
-              width: MediaQuery.of(dialogContext).size.width * 0.8,
-              child: SingleChildScrollView(
+              width: MediaQuery.of(dialogContext).size.width * 0.8, // ダイアログの幅を画面幅の80%に
+              child: SingleChildScrollView( // 内容が長くなる可能性を考慮
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -197,13 +216,13 @@ Future<Map<String, dynamic>?> _showCoreLogInputDialog({
                       const SizedBox(height: 16),
                     ],
                     _buildSharedLogInputFields(
-                      context: dialogContext, 
-                      memoController: memoController, 
-                      // memoFocusNode: FocusNode(), // この行を削除
+                      context: dialogContext, // AlertDialogのBuildContextを渡す
+                      memoController: memoController, // memoControllerを渡す
+                      // memoFocusNode: memoFocusNode, // FocusNodeを渡す
                       selectedColorLabel: selectedColorInDialog,
                       onColorLabelChanged: (String? newValue) {
                         if (newValue != null) {
-                          setStateDialog(() {
+                          setStateDialog(() { // StatefulBuilderのsetStateを呼び出してダイアログ内のUIを更新
                             selectedColorInDialog = newValue;
                           });
                         }
@@ -224,6 +243,9 @@ Future<Map<String, dynamic>?> _showCoreLogInputDialog({
       );
     },
   ); 
+  // .whenComplete(() {
+  //   memoFocusNode.dispose(); // ダイアログが閉じられたらFocusNodeを破棄
+  // });
 }
 
 
@@ -264,62 +286,8 @@ Future<Map<String, String>?> showLogCommentEditDialog({
       ];
     },
   );
+  // _showCoreLogInputDialog は Map<String, dynamic>? を返す可能性があるため、
+  // ここで期待する Map<String, String>? に安全に変換する。
   if (result == null) return null;
   return result.map((key, value) => MapEntry(key, value as String));
-}
-
-// 新しいログを追加するためのダイアログ
-Future<Map<String, dynamic>?> showAddNewLogDialog({
-  required BuildContext context,
-  required String timeForLogDialog,
-  required List<String> commentSuggestions,
-  required String Function(String) katakanaToHiraganaConverter,
-  required Map<String, Color> availableColorLabels,
-  required String initialSelectedColorLabel,
-}) async {
-  return await _showCoreLogInputDialog(
-    context: context,
-    dialogTitle: 'ログ記録', 
-    contentText: 'LOGGING TIME: $timeForLogDialog',
-    initialMemo: '', 
-    initialColorLabel: initialSelectedColorLabel,
-    commentSuggestions: commentSuggestions,
-    katakanaToHiraganaConverter: katakanaToHiraganaConverter,
-    availableColorLabels: availableColorLabels,
-    actionsBuilder: (dialogContext, memoCtrl, selectedColor) {
-      return [
-        Tooltip(
-          message: '終了して記録',
-          child: IconButton(
-            icon: const Icon(Icons.stop_circle, color: Colors.redAccent, size: 28),
-            onPressed: () {
-              String memo = memoCtrl.text.trim();
-              if (memo.isEmpty) memo = '(活動終了)';
-              Navigator.of(dialogContext).pop({
-                'action': 'stop',
-                'memo': memo,
-                'colorLabel': selectedColor,
-              });
-            },
-          ),
-        ),
-        const Spacer(),
-        Tooltip(
-          message: '保存して記録を続ける',
-          child: IconButton(
-            icon: Icon(Icons.edit_note, color: Theme.of(dialogContext).colorScheme.primary, size: 28),
-            onPressed: () {
-              String memo = memoCtrl.text.trim();
-              if (memo.isEmpty) memo = '(ラップを記録)';
-              Navigator.of(dialogContext).pop({
-                'action': 'lap',
-                'memo': memo,
-                'colorLabel': selectedColor,
-              });
-            },
-          ),
-        ),
-      ];
-    },
-  );
 }
