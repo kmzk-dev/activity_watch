@@ -8,10 +8,10 @@ import '../models/log_entry.dart';
 
 import '../utils/time_formatters.dart';
 import '../utils/log_exporter.dart';
-import '../utils/dialog_utils.dart';
+import '../utils/dialog_utils.dart'; // showLogCommentEditDialog のために残す
 import '../utils/session_dialog_utils.dart';
 import '../utils/session_storage.dart';
-import '../utils/string_utils.dart';
+import '../utils/string_utils.dart'; //  _showEditLogDialog のために残す
 
 import './widgets/custom_app_bar.dart';
 import './widgets/log_table.dart';
@@ -44,6 +44,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this); // オブザーバーを登録
+    // _showEditLogDialog でサジェスチョンを利用するため、初期ロードは残す
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         loadSuggestionsFromPrefs(force: true);
@@ -84,6 +85,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     }
   }
 
+  // サジェスチョンをロードする関数 (主にログ編集ダイアログ用)
   Future<void> loadSuggestionsFromPrefs({bool force = false}) async {
     if (!force && _lastSuggestionsLoadTime != null && DateTime.now().difference(_lastSuggestionsLoadTime!) < const Duration(seconds: 1)) {
       return;
@@ -113,82 +115,99 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     });
   }
 
-  void _handleFABPress() async {
-    if (_isRunning) { // ラップ記録または停止
-      await loadSuggestionsFromPrefs(force: true);
-      if (!mounted) return;
+  // 計測を開始するメソッド
+  void _handleStartStopwatch() {
+    setState(() {
+      _logs.clear();
+      _stopwatch.reset(); // Stopwatchはリセット
+      _currentActualSessionStartTime = DateTime.now(); // 絶対開始時刻を記録
+      _elapsedTime = '00:00:00:00';
 
-      // 現在の経過時間を絶対開始時刻からの差分で計算
-      final Duration currentElapsedDuration = _currentActualSessionStartTime != null
-          ? DateTime.now().difference(_currentActualSessionStartTime!)
-          : Duration.zero;
-      final String currentTimeForLog = formatLogTime(currentElapsedDuration);
-
-      final Map<String, dynamic>? result = await showAddNewLogDialog(
-        context: context,
-        timeForLogDialog: currentTimeForLog,
-        commentSuggestions: _commentSuggestions,
-        katakanaToHiraganaConverter: katakanaToHiragana,
-        availableColorLabels: colorLabels,
-        initialSelectedColorLabel: colorLabels.keys.first,
-      );
-
-      if (result != null && mounted) {
-        final String memo = result['memo'] as String;
-        final String colorLabel = result['colorLabel'] as String;
-        final String action = result['action'] as String;
-
-        final String startTime = _logs.isEmpty ? '00:00:00' : _logs.last.endTime;
-        final newLog = LogEntry(
-          actualSessionStartTime: _currentActualSessionStartTime!,
-          startTime: startTime,
-          endTime: currentTimeForLog, // 正確な終了時刻
-          memo: memo,
-          colorLabelName: colorLabel,
-        );
-        newLog.calculateDuration(); // LogEntry内部のdurationもこれで計算される
-        setState(() {
-          _logs.add(newLog);
-        });
-
-        if (action == 'stop') {
-          _stopCounter();
-        }
-      }
-      if (mounted) {
-        FocusScope.of(context).unfocus();
-      }
-    } else { // 計測開始
-      setState(() {
-        _logs.clear();
-        _stopwatch.reset(); // Stopwatchはリセット
-        _currentActualSessionStartTime = DateTime.now(); // 絶対開始時刻を記録
-        _elapsedTime = '00:00:00:00';
-
-        _stopwatch.start(); // Stopwatchを開始（主にisRunning状態の管理のため）
-        _isRunning = true;
-        _startTimer(); // カスタムタイマーを開始
-      });
-    }
+      _stopwatch.start(); // Stopwatchを開始（主にisRunning状態の管理のため）
+      _isRunning = true;
+      _startTimer(); // カスタムタイマーを開始
+    });
   }
 
-  void _stopCounter() {
+  // 計測を停止し、最終ログを自動記録するメソッド
+  void _handleStopStopwatch() {
+    if (!_isRunning || _currentActualSessionStartTime == null) return;
+
+    final Duration currentElapsedDuration = DateTime.now().difference(_currentActualSessionStartTime!);
+    final String currentTimeForLog = formatLogTime(currentElapsedDuration);
+    final String startTime = _logs.isEmpty ? '00:00:00' : _logs.last.endTime;
+
+    final newLog = LogEntry(
+      actualSessionStartTime: _currentActualSessionStartTime!,
+      startTime: startTime,
+      endTime: currentTimeForLog,
+      memo: '(活動終了)', // 固定コメント
+      colorLabelName: colorLabels.keys.first, // デフォルトの色ラベル
+    );
+    newLog.calculateDuration();
+
     if (mounted) {
       setState(() {
-        if (_isRunning) {
-          _timer?.cancel();
-          _stopwatch.stop(); // Stopwatchを停止
-          _isRunning = false;
-          // 最終的な経過時間を絶対開始時刻からの差分で確定
-          if (_currentActualSessionStartTime != null) {
-            _elapsedTime = formatDisplayTime(DateTime.now().difference(_currentActualSessionStartTime!));
-          }
-        }
+        _logs.add(newLog);
+        _timer?.cancel();
+        _stopwatch.stop();
+        _isRunning = false;
+        _elapsedTime = formatDisplayTime(currentElapsedDuration); // 最終時間を表示
       });
+      FocusScope.of(context).unfocus();
     }
   }
 
+
+  // ラップを記録するメソッド（ダイアログ表示なし、即時記録）
+  void _handleLapRecord() {
+    if (!_isRunning || _currentActualSessionStartTime == null) return; // 計測中でなければ何もしない
+
+    // 現在の経過時間を絶対開始時刻からの差分で計算
+    final Duration currentElapsedDuration = DateTime.now().difference(_currentActualSessionStartTime!);
+    final String currentTimeForLog = formatLogTime(currentElapsedDuration);
+    final String startTime = _logs.isEmpty ? '00:00:00' : _logs.last.endTime;
+
+    final newLog = LogEntry(
+      actualSessionStartTime: _currentActualSessionStartTime!,
+      startTime: startTime,
+      endTime: currentTimeForLog, // 正確な終了時刻
+      memo: '(ラップ記録)', // 固定コメント
+      colorLabelName: colorLabels.keys.first, // デフォルトの色ラベル
+    );
+    newLog.calculateDuration(); // LogEntry内部のdurationもこれで計算される
+
+    if (mounted) {
+      setState(() {
+        _logs.add(newLog);
+      });
+      // 即時記録なのでフォーカス解除は不要な場合が多いが、念のため
+      // FocusScope.of(context).unfocus();
+    }
+  }
+
+  // _stopCounter は showAddNewLogDialog の 'stop' action でのみ使われる想定だったが、
+  // showAddNewLogDialog をラップ記録で使わなくなったため、このメソッドは現在どこからも呼び出されていない。
+  // 必要に応じて削除または再評価。
+  // void _stopCounter() {
+  //   if (mounted) {
+  //     setState(() {
+  //       if (_isRunning) {
+  //         _timer?.cancel();
+  //         _stopwatch.stop(); // Stopwatchを停止
+  //         _isRunning = false;
+  //         // 最終的な経過時間を絶対開始時刻からの差分で確定
+  //         if (_currentActualSessionStartTime != null) {
+  //           _elapsedTime = formatDisplayTime(DateTime.now().difference(_currentActualSessionStartTime!));
+  //         }
+  //       }
+  //     });
+  //   }
+  // }
+
+
   Future<void> _showEditLogDialog(int logIndex) async {
+    // ログ編集時にはサジェスチョンが必要なため、ロード処理を呼び出す
     await loadSuggestionsFromPrefs(force: true);
     if (!mounted) return;
 
@@ -198,7 +217,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       context: context,
       initialMemo: currentLog.memo,
       initialColorLabelName: currentLog.colorLabelName,
-      commentSuggestions: _commentSuggestions,
+      commentSuggestions: _commentSuggestions, // ここでサジェスチョンリストを渡す
       katakanaToHiraganaConverter: katakanaToHiragana,
       availableColorLabels: colorLabels,
     );
@@ -254,31 +273,19 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     }
   }
 
-  Widget _buildFloatingActionButton() {
-    if (!_isRunning) {
-      return FloatingActionButton(
-        onPressed: _handleFABPress,
-        tooltip: '開始',
-        heroTag: 'startFab',
-        child: const Icon(Icons.play_arrow, size: 36.0),
-      );
-    } else {
-      return FloatingActionButton(
-        onPressed: _handleFABPress,
-        tooltip: 'ラップ記録',
-        heroTag: 'lapRecordFab',
-        child: const Icon(Icons.format_list_bulleted_add, size: 36.0),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final Color primaryColor = Theme.of(context).colorScheme.primary;
+    final Color stopColor = Colors.redAccent; // 停止ボタン用の色
+    final Color secondaryColor = Theme.of(context).colorScheme.secondary;
+    final Color disabledColor = Colors.grey[400]!;
+
     return VisibilityDetector(
       key: const Key('stopwatch_screen_widget_visibility_detector'),
       onVisibilityChanged: (visibilityInfo) {
         final visiblePercentage = visibilityInfo.visibleFraction * 100;
         if (mounted && visiblePercentage > 50) {
+          // _showEditLogDialog でサジェスチョンを使うため、画面表示時にもロードを試みる
           loadSuggestionsFromPrefs(force: true);
         }
       },
@@ -331,12 +338,41 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
             ],
           ),
         ),
-        floatingActionButton: SizedBox(
-          width: 70.0,
-          height: 70.0,
-          child: _buildFloatingActionButton(),
+        floatingActionButton: Stack(
+          children: <Widget>[
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 16.0),
+                child: FloatingActionButton(
+                  onPressed: _isRunning ? _handleStopStopwatch : _handleStartStopwatch,
+                  tooltip: _isRunning ? '停止' : '開始',
+                  heroTag: 'startStopFab', // heroTagはユニークにする
+                  backgroundColor: _isRunning ? stopColor : primaryColor,
+                  foregroundColor: Colors.white,
+                  child: Icon(_isRunning ? Icons.stop : Icons.play_arrow, size: 36.0),
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.bottomRight,
+              child: Padding(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).padding.bottom + 16.0,
+                  right: 16.0
+                ),
+                child: FloatingActionButton(
+                  onPressed: _isRunning ? _handleLapRecord : null, // 計測中のみ有効
+                  tooltip: 'ラップ記録',
+                  heroTag: 'lapRecordFab',
+                  backgroundColor: !_isRunning ? disabledColor : secondaryColor, // 計測中でなければ無効色
+                  foregroundColor: Colors.white,
+                  child: const Icon(Icons.format_list_bulleted_add, size: 36.0),
+                ),
+              ),
+            ),
+          ],
         ),
-        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       ),
     );
   }
