@@ -9,7 +9,8 @@ import '../models/saved_log_session.dart'; // SavedLogSessionモデルをイン�
 import '../utils/session_dialog_utils.dart'; // 共通セッション編集ダイアログ関数をインポート
 import '../utils/dialog_utils.dart'; // ログ編集ダイアログ関数をインポート
 import '../utils/session_storage.dart'; // 共通ストレージ関数をインポート (updateSession を利用)
-import '../screens/widgets/log_table.dart'; // LogTableウィジェットをインポート
+// import '../screens/widgets/log_table.dart'; // 古いLogTableウィジェットのインポートはコメントアウトまたは削除
+import '../screens/widgets/log_card_list.dart'; // 新しいLogCardListウィジェットをインポート
 import '../theme/color_constants.dart'; // カラーラベル定義をインポート
 import '../utils/string_utils.dart'; // 文字列ユーティリティ (カタカナ→ひらがな変換) をインポート
 
@@ -25,8 +26,7 @@ class SessionDetailsScreen extends StatefulWidget {
 
 class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
   late SavedLogSession _editableSession; // 編集可能なセッションデータ
-  List<String> _commentSuggestions = []; // コメントサジェスチョン
-  // static const String _suggestionsKey = 'comment_suggestions'; // サジェスチョン用SharedPreferencesキー
+  List<String> _commentSuggestions = []; // コメントサジェスチョン (空のリストとして初期化)
 
   static const String _savedSessionsKey = 'saved_log_sessions'; // SharedPreferencesのキー
 
@@ -35,7 +35,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
     super.initState();
     // widgetから渡されたセッションデータを編集可能データとして初期化
     _editableSession = widget.session.copyWith();
-    // _loadSuggestions(); // 必要であればサジェスチョンを読み込む
+    // _loadSuggestions(); // UI変更のみに集中するため、サジェスト読み込みはコメントアウト
   }
 
   @override
@@ -43,12 +43,13 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
     super.dispose();
   }
 
-  // // 必要であればコメントサジェスチョンを読み込む関数
+  // コメントサジェスチョンを読み込む関数 (今回は使用しない)
   // Future<void> _loadSuggestions() async {
   //   final SharedPreferences prefs = await SharedPreferences.getInstance();
   //   if (!mounted) return;
   //   setState(() {
-  //     _commentSuggestions = prefs.getStringList(_suggestionsKey) ?? [];
+  //     // StopwatchScreenWidget と同じキーを参照
+  //     _commentSuggestions = prefs.getStringList('comment_suggestions') ?? [];
   //   });
   // }
 
@@ -93,7 +94,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
       context: context,
       initialMemo: currentLog.memo,
       initialColorLabelName: currentLog.colorLabelName,
-      commentSuggestions: _commentSuggestions,
+      commentSuggestions: _commentSuggestions, // 空のリストが渡される (サジェストなし)
       katakanaToHiraganaConverter: katakanaToHiragana,
       availableColorLabels: colorLabels,
     );
@@ -258,12 +259,13 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
               ],
             ),
           ),
+          // --- ログ表示部分を LogCardList に変更 ---
           Expanded(
             child: _editableSession.logEntries.isEmpty
                 ? const Center(child: Text('このセッションにはログがありません。'))
-                : LogTable(
+                : LogCardList( // LogTable から LogCardList に変更
                     logs: _editableSession.logEntries,
-                    onEditLog: _editLogEntry,
+                    onEditLog: _editLogEntry, // コールバックはそのまま渡す
                   ),
           ),
         ],

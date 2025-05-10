@@ -1,3 +1,4 @@
+// lib/screens/stopwatch_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,13 +9,14 @@ import '../models/log_entry.dart';
 
 import '../utils/time_formatters.dart';
 import '../utils/log_exporter.dart';
-import '../utils/dialog_utils.dart'; // showLogCommentEditDialog のために残す
+import '../utils/dialog_utils.dart';
 import '../utils/session_dialog_utils.dart';
 import '../utils/session_storage.dart';
-import '../utils/string_utils.dart'; //  _showEditLogDialog のために残す
+import '../utils/string_utils.dart';
 
 import './widgets/custom_app_bar.dart';
-import './widgets/log_table.dart';
+// import './widgets/log_table.dart'; // 古いLogTableウィジェットのインポートはコメントアウトまたは削除
+import './widgets/log_card_list.dart'; // 新しいLogCardListウィジェットをインポート
 
 class StopwatchScreenWidget extends StatefulWidget {
   const StopwatchScreenWidget({super.key});
@@ -195,7 +197,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
 
     final Map<String, String>? result = await showLogCommentEditDialog(
       context: context,
-      initialMemo: currentLog.memo, // ここで渡される memo が空文字になる
+      initialMemo: currentLog.memo,
       initialColorLabelName: currentLog.colorLabelName,
       commentSuggestions: _commentSuggestions, // ここでサジェスチョンリストを渡す
       katakanaToHiraganaConverter: katakanaToHiragana,
@@ -309,10 +311,11 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
                   ],
                 ),
               ),
+              // --- ログ表示部分を LogCardList に変更 ---
               Expanded(
-                child: LogTable(
+                child: LogCardList( // LogTable から LogCardList に変更
                   logs: _logs,
-                  onEditLog: _showEditLogDialog,
+                  onEditLog: _showEditLogDialog, // コールバックはそのまま渡す
                 ),
               ),
             ],
