@@ -14,9 +14,9 @@ import '../utils/session_dialog_utils.dart';
 import '../utils/session_storage.dart';
 import '../utils/string_utils.dart';
 
-// import './widgets/custom_app_bar.dart'; // AppBarを廃止するためコメントアウトまたは削除
-import './widgets/log_card_list.dart';
-import './settings_screen.dart'; // SettingsScreenを直接インポート
+import './widgets/log_card_carousel.dart'; 
+import './settings_screen.dart'; 
+import './widgets/log_color_summary_chart.dart'; // LogColorSummaryChartをインポート
 
 class StopwatchScreenWidget extends StatefulWidget {
   const StopwatchScreenWidget({super.key});
@@ -27,7 +27,7 @@ class StopwatchScreenWidget extends StatefulWidget {
 
 // WidgetsBindingObserver をミックスイン
 class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with WidgetsBindingObserver {
-  final Stopwatch _stopwatch = Stopwatch(); // Stopwatchオブジェクトは主に状態管理（isRunning）に使用
+  final Stopwatch _stopwatch = Stopwatch();
   Timer? _timer;
   bool _isRunning = false;
   String _elapsedTime = '00:00:00:00';
@@ -35,37 +35,31 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   final TextEditingController _sessionCommentController = TextEditingController();
 
   final List<LogEntry> _logs = [];
-  DateTime? _currentActualSessionStartTime; // 計測の絶対開始時刻
+  DateTime? _currentActualSessionStartTime;
 
   List<String> _commentSuggestions = [];
   static const String _suggestionsKey = 'comment_suggestions';
   static const String _savedSessionsKey = 'saved_log_sessions';
   DateTime? _lastSuggestionsLoadTime;
 
-  // ScrollControllerのインスタンスを作成
-  final ScrollController _scrollController = ScrollController();
-  bool _showScrollUpIndicator = false;
-  bool _showScrollDownIndicator = false;
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this); // オブザーバーを登録
-    _scrollController.addListener(_scrollListener); // ScrollControllerにリスナーを追加
-    // _showEditLogDialog でサジェスチョンを利用するため、初期ロードは残す
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         loadSuggestionsFromPrefs(force: true);
-        _scrollListener(); // 初期状態のインジケータ表示を更新
       }
     });
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this); // オブザーバーを解除
-    _scrollController.removeListener(_scrollListener); // リスナーを削除
-    _scrollController.dispose(); // ScrollControllerを破棄
+    WidgetsBinding.instance.removeObserver(this);
+    _pageController.dispose();
     _timer?.cancel();
     _stopwatch.stop();
     _sessionTitleController.dispose();
@@ -73,47 +67,23 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     super.dispose();
   }
 
-  void _scrollListener() {
-    if (!mounted || !_scrollController.hasClients) {
-      // スクロールコントローラーがクライアントを持っていない場合（リストが空など）はインジケーターを非表示
-      if (mounted) {
-        setState(() {
-          _showScrollUpIndicator = false;
-          _showScrollDownIndicator = false;
-        });
-      }
-      return;
-    }
-
-    bool canScrollUp = _scrollController.position.pixels > _scrollController.position.minScrollExtent;
-    bool canScrollDown = _scrollController.position.pixels < _scrollController.position.maxScrollExtent;
-
-    // リストのアイテム数が少なく、スクロール自体が不要な場合も考慮
-    if (_scrollController.position.maxScrollExtent == _scrollController.position.minScrollExtent) {
-      canScrollUp = false;
-      canScrollDown = false;
-    }
-
+  void _onPageChanged(int page) {
     if (mounted) {
       setState(() {
-        _showScrollUpIndicator = canScrollUp;
-        _showScrollDownIndicator = canScrollDown;
+        _currentPage = page;
       });
     }
   }
 
 
-  // アプリのライフサイクルが変更されたときに呼ばれる
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (!_isRunning) return; // ストップウォッチが実行中でなければ何もしない
+    if (!_isRunning) return;
 
     if (state == AppLifecycleState.paused) {
-      // アプリがバックグラウンドに移行したらタイマーをキャンセル
       _timer?.cancel();
     } else if (state == AppLifecycleState.resumed) {
-      // アプリがフォアグラウンドに戻ったら、経過時間を再計算しタイマーを再開
       if (_currentActualSessionStartTime != null) {
         final Duration resumedElapsedTime = DateTime.now().difference(_currentActualSessionStartTime!);
         if (mounted) {
@@ -121,12 +91,11 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
             _elapsedTime = formatDisplayTime(resumedElapsedTime);
           });
         }
-        _startTimer(); // タイマーを再開
+        _startTimer();
       }
     }
   }
 
-  // サジェスチョンをロードする関数 (主にログ編集ダイアログ用)
   Future<void> loadSuggestionsFromPrefs({bool force = false}) async {
     if (!force && _lastSuggestionsLoadTime != null && DateTime.now().difference(_lastSuggestionsLoadTime!) < const Duration(seconds: 1)) {
       return;
@@ -139,9 +108,8 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     });
   }
 
-  // タイマーを開始または再開する共通メソッド
   void _startTimer() {
-    _timer?.cancel(); // 既存のタイマーがあればキャンセル
+    _timer?.cancel();
     _timer = Timer.periodic(const Duration(milliseconds: 10), (timer) {
       if (!_isRunning || _currentActualSessionStartTime == null) {
         timer.cancel();
@@ -149,109 +117,108 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       }
       if (mounted) {
         setState(() {
-          // 絶対開始時刻からの差分で経過時間を更新
           _elapsedTime = formatDisplayTime(DateTime.now().difference(_currentActualSessionStartTime!));
         });
       }
     });
   }
 
-  // 計測を開始するメソッド
   void _handleStartStopwatch() {
     setState(() {
       _logs.clear();
-      _stopwatch.reset(); // Stopwatchはリセット
-      _currentActualSessionStartTime = DateTime.now(); // 絶対開始時刻を記録
+      _stopwatch.reset();
+      _currentActualSessionStartTime = DateTime.now();
       _elapsedTime = '00:00:00:00';
-
-      _stopwatch.start(); // Stopwatchを開始（主にisRunning状態の管理のため）
+      _stopwatch.start();
       _isRunning = true;
-      _startTimer(); // カスタムタイマーを開始
-
-      // スクロールインジケーターをリセット
-      _showScrollUpIndicator = false;
-      _showScrollDownIndicator = false;
+      _startTimer();
+      _currentPage = 0;
     });
-    // setStateの後、次のフレームでUIが更新された後にスクロールリスナーを呼び出す
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scrollListener();
+      if (_pageController.hasClients) {
+        _pageController.jumpToPage(0);
+      }
     });
   }
 
-  // 計測を停止し、最終ログを自動記録するメソッド
   void _handleStopStopwatch() {
     if (!_isRunning || _currentActualSessionStartTime == null) return;
-
     final Duration currentElapsedDuration = DateTime.now().difference(_currentActualSessionStartTime!);
     final String currentTimeForLog = formatLogTime(currentElapsedDuration);
     final String startTime = _logs.isEmpty ? '00:00:00' : _logs.last.endTime;
-
     final newLog = LogEntry(
       actualSessionStartTime: _currentActualSessionStartTime!,
       startTime: startTime,
       endTime: currentTimeForLog,
-      memo: '', // ダミーコメントを削除し、空文字を設定
-      colorLabelName: colorLabels.keys.first, // デフォルトの色ラベル
+      memo: '',
+      colorLabelName: colorLabels.keys.first,
     );
     newLog.calculateDuration();
-
     if (mounted) {
       setState(() {
         _logs.add(newLog);
         _timer?.cancel();
         _stopwatch.stop();
         _isRunning = false;
-        _elapsedTime = formatDisplayTime(currentElapsedDuration); // 最終時間を表示
+        _elapsedTime = formatDisplayTime(currentElapsedDuration);
+        _currentPage = 0;
       });
       FocusScope.of(context).unfocus();
-      // setStateの後、次のフレームでUIが更新された後にスクロールリスナーを呼び出す
       WidgetsBinding.instance.addPostFrameCallback((_) {
-       _scrollListener();
+        if (_pageController.hasClients && _getDisplayLogs().isNotEmpty) {
+          _pageController.animateToPage(
+            0,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
       });
     }
   }
 
-
-  // ラップを記録するメソッド（ダイアログ表示なし、即時記録）
   void _handleLapRecord() {
-    if (!_isRunning || _currentActualSessionStartTime == null) return; // 計測中でなければ何もしない
-
-    // 現在の経過時間を絶対開始時刻からの差分で計算
+    if (!_isRunning || _currentActualSessionStartTime == null) return;
     final Duration currentElapsedDuration = DateTime.now().difference(_currentActualSessionStartTime!);
     final String currentTimeForLog = formatLogTime(currentElapsedDuration);
     final String startTime = _logs.isEmpty ? '00:00:00' : _logs.last.endTime;
-
     final newLog = LogEntry(
       actualSessionStartTime: _currentActualSessionStartTime!,
       startTime: startTime,
-      endTime: currentTimeForLog, // 正確な終了時刻
-      memo: '', // ダミーコメントを削除し、空文字を設定
-      colorLabelName: colorLabels.keys.first, // デフォルトの色ラベル
+      endTime: currentTimeForLog,
+      memo: '',
+      colorLabelName: colorLabels.keys.first,
     );
-    newLog.calculateDuration(); // LogEntry内部のdurationもこれで計算される
-
+    newLog.calculateDuration();
     if (mounted) {
       setState(() {
         _logs.add(newLog);
+        _currentPage = 0;
       });
-      // setStateの後、次のフレームでUIが更新された後にスクロールリスナーを呼び出す
       WidgetsBinding.instance.addPostFrameCallback((_) {
-       _scrollListener();
+        if (_pageController.hasClients && _getDisplayLogs().isNotEmpty) {
+           _pageController.animateToPage(
+            0,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
       });
-      // 即時記録なのでフォーカス解除は不要な場合が多いが、念のため
-      // FocusScope.of(context).unfocus();
     }
   }
 
-  Future<void> _showEditLogDialog(int logIndex) async {
-    // 引数 logIndex は、_logs リスト全体における実際のインデックスであると仮定する。
-    if (logIndex < 0 || logIndex >= _logs.length) {
-      print('Error: Invalid logIndex ($logIndex) passed to _showEditLogDialog.');
+  Future<void> _showEditLogDialog(int pageViewIndex) async {
+    if (_logs.isEmpty || pageViewIndex < 0 ) return;
+
+    final int actualLogIndex = _logs.length - 1 - pageViewIndex;
+
+    if (actualLogIndex < 0 || actualLogIndex >= _logs.length) {
+      print('Error: Invalid actualLogIndex ($actualLogIndex) derived from pageViewIndex ($pageViewIndex).');
       return;
     }
+
     await loadSuggestionsFromPrefs(force: true);
     if (!mounted) return;
-    final LogEntry currentLog = _logs[logIndex];
+    final LogEntry currentLog = _logs[actualLogIndex];
     final Map<String, String>? result = await showLogCommentEditDialog(
       context: context,
       initialMemo: currentLog.memo,
@@ -264,8 +231,8 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       final String newMemo = result['memo'] ?? currentLog.memo;
       final String newColorLabel = result['colorLabel'] ?? currentLog.colorLabelName;
       setState(() {
-        _logs[logIndex].memo = newMemo;
-        _logs[logIndex].colorLabelName = newColorLabel;
+        _logs[actualLogIndex].memo = newMemo;
+        _logs[actualLogIndex].colorLabelName = newColorLabel;
       });
     }
     if (!mounted) return;
@@ -307,51 +274,28 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     }
   }
 
-  Widget _buildScrollIndicator(IconData icon, Alignment alignment, VoidCallback onPressed) {
-    return Positioned(
-      left: alignment == Alignment.topCenter || alignment == Alignment.bottomCenter ? 0 : null,
-      right: alignment == Alignment.topCenter || alignment == Alignment.bottomCenter ? 0 : null,
-      top: alignment == Alignment.topCenter ? 0 : null,
-      bottom: alignment == Alignment.bottomCenter ? 0 : null,
-      child: Align(
-        alignment: alignment,
-        child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.3),
-            shape: BoxShape.circle,
-          ),
-          child: IconButton(
-            icon: Icon(icon, color: Colors.white),
-            iconSize: 20.0,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            onPressed: onPressed,
-          ),
-        ),
-      ),
-    );
+  List<LogEntry> _getDisplayLogs() {
+    return _logs.reversed.toList();
   }
 
   @override
   Widget build(BuildContext context) {
     final Color primaryColor = Theme.of(context).colorScheme.primary;
-    final Color stopColor = Colors.redAccent; // 停止ボタン用の色
+    final Color stopColor = Colors.redAccent;
     final Color secondaryColor = Theme.of(context).colorScheme.secondary;
     final Color disabledColor = Colors.grey[400]!;
-    // ボタンのサイズを定義 (約10%小さくする)
-    const double fabDimension = 112.0 * 0.9; // 元の112.0から変更
-    const double iconSize = 72.0 * 0.9;     // 元の72.0から変更
-    // ラップ記録ボタンと設定ボタンのサイズを定義 (開始/停止ボタンの半分)
+    const double fabDimension = 112.0 * 0.9;
+    const double iconSize = 72.0 * 0.9;
     const double smallFabDimension = fabDimension / 2;
     const double smallIconSize = iconSize / 2;
-
-    // FABの共通ボトムパディング
     final double fabBottomPadding = MediaQuery.of(context).padding.bottom + 16.0;
-    // LogCardListの下に必要なパディング (大きなボタンの高さ + 少しの余白)
-    // fabDimensionが変更されたため、この値も自動的に調整される
-    final double logListBottomPadding = fabDimension + 32.0;
 
+    const double carouselHeight = 160.0;
+    // logAreaBottomPaddingはExpandedの親のPaddingなので、Expandedが使える高さを制御する
+    // この値を小さくすると、Expandedが使える高さが増える
+    final double logAreaBottomPadding = fabDimension + 16.0; // 少し減らしてみる
+
+    final displayLogsForCarousel = _getDisplayLogs();
 
     return VisibilityDetector(
       key: const Key('stopwatch_screen_widget_visibility_detector'),
@@ -360,15 +304,8 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
         if (mounted && visiblePercentage > 50) {
           loadSuggestionsFromPrefs(force: true);
         }
-        if (mounted) {
-            // UIが完全に描画された後にリスナーを呼び出す
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              _scrollListener();
-            });
-        }
       },
       child: Scaffold(
-        // appBar: const CustomAppBar(), // AppBarを廃止
         body: SafeArea(
           child: Column(
             children: <Widget>[
@@ -407,48 +344,47 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
                   ],
                 ),
               ),
-              // --- ログ表示部分 ---
+              // --- ログ表示エリア ---
               Expanded(
-                child: Padding( // FABとの重なりを避けるためのパディング
-                  padding: EdgeInsets.only(bottom: logListBottomPadding),
-                  child: Stack( // LogCardListとスクロールインジケータを重ねる
-                    children: [
-                      LogCardList(
-                        logs: _logs,
-                        onEditLog: _showEditLogDialog,
-                        scrollController: _scrollController, // LogCardListにScrollControllerを渡す
-                      ),
-                      if (_showScrollUpIndicator)
-                        _buildScrollIndicator(Icons.keyboard_arrow_up, Alignment.topCenter, () {
-                          _scrollController.animateTo(
-                            _scrollController.position.minScrollExtent,
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeOut,
-                          );
-                        }),
-                      if (_showScrollDownIndicator)
-                        _buildScrollIndicator(Icons.keyboard_arrow_down, Alignment.bottomCenter, () {
-                           _scrollController.animateTo(
-                            _scrollController.position.maxScrollExtent,
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeOut,
-                          );
-                        }),
-                    ],
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: logAreaBottomPadding), 
+                  child: SingleChildScrollView( // ColumnをSingleChildScrollViewでラップ
+                    child: Column(
+                      // mainAxisSize: MainAxisSize.min, // SingleChildScrollViewの子なのでminでも良いが、Expanded内のためmaxでも可
+                      children: [
+                        LogColorSummaryChart(logs: _logs, chartHeight: 80.0), // chartHeightを少し小さくしてみる
+                        SizedBox(
+                          height: carouselHeight, // カルーセルの高さは維持
+                          child: LogCardCarousel(
+                            logs: displayLogsForCarousel,
+                            onEditLog: _showEditLogDialog,
+                            pageController: _pageController,
+                            onPageChanged: _onPageChanged,
+                          ),
+                        ),
+                        if (displayLogsForCarousel.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4.0, bottom: 8.0), // ページ番号の下にも少し余白
+                            child: Text(
+                              '${_currentPage + 1} / ${displayLogsForCarousel.length}',
+                              style: TextStyle(color: Colors.grey[600], fontSize: 12.0),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ],
           ),
         ),
-        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked, // FAB群を中央に配置
-        floatingActionButton: Padding( // Row全体に下パディングを適用
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+        floatingActionButton: Padding(
           padding: EdgeInsets.only(bottom: fabBottomPadding),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround, // ボタン間のスペースを均等に
-            crossAxisAlignment: CrossAxisAlignment.center, // 垂直方向の中央揃え
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
-              // 設定ボタン (左)
               SizedBox(
                 width: smallFabDimension,
                 height: smallFabDimension,
@@ -467,7 +403,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
                   child: const Icon(Icons.settings, size: smallIconSize),
                 ),
               ),
-              // スタート・ストップボタン (中央)
               SizedBox(
                 width: fabDimension,
                 height: fabDimension,
@@ -481,7 +416,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
                   child: Icon(_isRunning ? Icons.stop : Icons.play_arrow, size: iconSize),
                 ),
               ),
-              // ラップ記録ボタン (右)
               SizedBox(
                 width: smallFabDimension,
                 height: smallFabDimension,
