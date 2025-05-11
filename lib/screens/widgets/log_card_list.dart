@@ -8,11 +8,13 @@ import 'log_card_item.dart'; // LogCardItemウィジェット
 class LogCardList extends StatelessWidget {
   final List<LogEntry> logs; // 表示するログのリスト
   final Function(int) onEditLog; // 各ログカードの編集ボタンが押されたときのコールバック
+  final ScrollController? scrollController; // スクロールコントローラーを受け取る
 
   const LogCardList({
     super.key,
     required this.logs,
     required this.onEditLog,
+    this.scrollController, // コンストラクタにscrollControllerを追加
   });
 
   @override
@@ -36,17 +38,19 @@ class LogCardList extends StatelessWidget {
               ))
           // ログがある場合はListViewで各カードを表示
           : ListView.builder(
+              controller: scrollController, // ListViewにScrollControllerを設定
               padding: const EdgeInsets.symmetric(vertical: 4.0), // リスト上下のパディング
               itemCount: logs.length, // ログの数
               itemBuilder: (context, index) {
                 // リストは新しいものから順に表示するため、インデックスを逆順にする
+                // この logIndex は _logs リスト全体における実際のインデックスとなる
                 final logIndex = logs.length - 1 - index;
                 final log = logs[logIndex];
 
                 // LogCardItemウィジェットを生成して返す
                 return LogCardItem(
                   log: log,
-                  logIndex: logIndex,
+                  logIndex: logIndex, // _logs リストの実際のインデックスを渡す
                   onEdit: onEditLog,
                 );
               },

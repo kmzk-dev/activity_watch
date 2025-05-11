@@ -14,9 +14,9 @@ import '../utils/session_dialog_utils.dart';
 import '../utils/session_storage.dart';
 import '../utils/string_utils.dart';
 
-import './widgets/custom_app_bar.dart';
-// import './widgets/log_table.dart'; // 古いLogTableウィジェットのインポートはコメントアウトまたは削除
-import './widgets/log_card_list.dart'; // 新しいLogCardListウィジェットをインポート
+// import './widgets/custom_app_bar.dart'; // AppBarを廃止するためコメントアウトまたは削除
+import './widgets/log_card_list.dart';
+import './settings_screen.dart'; // SettingsScreenを直接インポート
 
 class StopwatchScreenWidget extends StatefulWidget {
   const StopwatchScreenWidget({super.key});
@@ -42,14 +42,21 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   static const String _savedSessionsKey = 'saved_log_sessions';
   DateTime? _lastSuggestionsLoadTime;
 
+  // ScrollControllerのインスタンスを作成
+  final ScrollController _scrollController = ScrollController();
+  bool _showScrollUpIndicator = false;
+  bool _showScrollDownIndicator = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this); // オブザーバーを登録
+    _scrollController.addListener(_scrollListener); // ScrollControllerにリスナーを追加
     // _showEditLogDialog でサジェスチョンを利用するため、初期ロードは残す
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         loadSuggestionsFromPrefs(force: true);
+        _scrollListener(); // 初期状態のインジケータ表示を更新
       }
     });
   }
@@ -57,12 +64,44 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this); // オブザーバーを解除
+    _scrollController.removeListener(_scrollListener); // リスナーを削除
+    _scrollController.dispose(); // ScrollControllerを破棄
     _timer?.cancel();
     _stopwatch.stop();
     _sessionTitleController.dispose();
     _sessionCommentController.dispose();
     super.dispose();
   }
+
+  void _scrollListener() {
+    if (!mounted || !_scrollController.hasClients) {
+      // スクロールコントローラーがクライアントを持っていない場合（リストが空など）はインジケーターを非表示
+      if (mounted) {
+        setState(() {
+          _showScrollUpIndicator = false;
+          _showScrollDownIndicator = false;
+        });
+      }
+      return;
+    }
+
+    bool canScrollUp = _scrollController.position.pixels > _scrollController.position.minScrollExtent;
+    bool canScrollDown = _scrollController.position.pixels < _scrollController.position.maxScrollExtent;
+
+    // リストのアイテム数が少なく、スクロール自体が不要な場合も考慮
+    if (_scrollController.position.maxScrollExtent == _scrollController.position.minScrollExtent) {
+      canScrollUp = false;
+      canScrollDown = false;
+    }
+
+    if (mounted) {
+      setState(() {
+        _showScrollUpIndicator = canScrollUp;
+        _showScrollDownIndicator = canScrollDown;
+      });
+    }
+  }
+
 
   // アプリのライフサイクルが変更されたときに呼ばれる
   @override
@@ -128,6 +167,14 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       _stopwatch.start(); // Stopwatchを開始（主にisRunning状態の管理のため）
       _isRunning = true;
       _startTimer(); // カスタムタイマーを開始
+
+      // スクロールインジケーターをリセット
+      _showScrollUpIndicator = false;
+      _showScrollDownIndicator = false;
+    });
+    // setStateの後、次のフレームでUIが更新された後にスクロールリスナーを呼び出す
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollListener();
     });
   }
 
@@ -157,6 +204,10 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
         _elapsedTime = formatDisplayTime(currentElapsedDuration); // 最終時間を表示
       });
       FocusScope.of(context).unfocus();
+      // setStateの後、次のフレームでUIが更新された後にスクロールリスナーを呼び出す
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+       _scrollListener();
+      });
     }
   }
 
@@ -183,27 +234,32 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       setState(() {
         _logs.add(newLog);
       });
+      // setStateの後、次のフレームでUIが更新された後にスクロールリスナーを呼び出す
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+       _scrollListener();
+      });
       // 即時記録なのでフォーカス解除は不要な場合が多いが、念のため
       // FocusScope.of(context).unfocus();
     }
   }
 
   Future<void> _showEditLogDialog(int logIndex) async {
-    // ログ編集時にはサジェスチョンが必要なため、ロード処理を呼び出す
+    // 引数 logIndex は、_logs リスト全体における実際のインデックスであると仮定する。
+    if (logIndex < 0 || logIndex >= _logs.length) {
+      print('Error: Invalid logIndex ($logIndex) passed to _showEditLogDialog.');
+      return;
+    }
     await loadSuggestionsFromPrefs(force: true);
     if (!mounted) return;
-
     final LogEntry currentLog = _logs[logIndex];
-
     final Map<String, String>? result = await showLogCommentEditDialog(
       context: context,
       initialMemo: currentLog.memo,
       initialColorLabelName: currentLog.colorLabelName,
-      commentSuggestions: _commentSuggestions, // ここでサジェスチョンリストを渡す
+      commentSuggestions: _commentSuggestions,
       katakanaToHiraganaConverter: katakanaToHiragana,
       availableColorLabels: colorLabels,
     );
-
     if (result != null && mounted) {
       final String newMemo = result['memo'] ?? currentLog.memo;
       final String newColorLabel = result['colorLabel'] ?? currentLog.colorLabelName;
@@ -212,7 +268,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
         _logs[logIndex].colorLabelName = newColorLabel;
       });
     }
-
     if (!mounted) return;
     FocusScope.of(context).unfocus();
   }
@@ -232,7 +287,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       );
       return;
     }
-
     final Map<String, String>? sessionData = await showSessionDetailsInputDialog(
       context: context,
       dialogTitle: 'セッションを保存',
@@ -240,10 +294,8 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       initialComment: '',
       positiveButtonText: '保存',
     );
-
     if (!mounted) return;
     FocusScope.of(context).unfocus();
-
     if (sessionData != null && sessionData['title'] != null && sessionData['title']!.isNotEmpty) {
       await saveSession(
         context: context,
@@ -255,24 +307,68 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     }
   }
 
+  Widget _buildScrollIndicator(IconData icon, Alignment alignment, VoidCallback onPressed) {
+    return Positioned(
+      left: alignment == Alignment.topCenter || alignment == Alignment.bottomCenter ? 0 : null,
+      right: alignment == Alignment.topCenter || alignment == Alignment.bottomCenter ? 0 : null,
+      top: alignment == Alignment.topCenter ? 0 : null,
+      bottom: alignment == Alignment.bottomCenter ? 0 : null,
+      child: Align(
+        alignment: alignment,
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.3),
+            shape: BoxShape.circle,
+          ),
+          child: IconButton(
+            icon: Icon(icon, color: Colors.white),
+            iconSize: 20.0,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            onPressed: onPressed,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final Color primaryColor = Theme.of(context).colorScheme.primary;
     final Color stopColor = Colors.redAccent; // 停止ボタン用の色
     final Color secondaryColor = Theme.of(context).colorScheme.secondary;
     final Color disabledColor = Colors.grey[400]!;
+    // ボタンのサイズを定義 (約10%小さくする)
+    const double fabDimension = 112.0 * 0.9; // 元の112.0から変更
+    const double iconSize = 72.0 * 0.9;     // 元の72.0から変更
+    // ラップ記録ボタンと設定ボタンのサイズを定義 (開始/停止ボタンの半分)
+    const double smallFabDimension = fabDimension / 2;
+    const double smallIconSize = iconSize / 2;
+
+    // FABの共通ボトムパディング
+    final double fabBottomPadding = MediaQuery.of(context).padding.bottom + 16.0;
+    // LogCardListの下に必要なパディング (大きなボタンの高さ + 少しの余白)
+    // fabDimensionが変更されたため、この値も自動的に調整される
+    final double logListBottomPadding = fabDimension + 32.0;
+
 
     return VisibilityDetector(
       key: const Key('stopwatch_screen_widget_visibility_detector'),
       onVisibilityChanged: (visibilityInfo) {
         final visiblePercentage = visibilityInfo.visibleFraction * 100;
         if (mounted && visiblePercentage > 50) {
-          // _showEditLogDialog でサジェスチョンを使うため、画面表示時にもロードを試みる
           loadSuggestionsFromPrefs(force: true);
+        }
+        if (mounted) {
+            // UIが完全に描画された後にリスナーを呼び出す
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _scrollListener();
+            });
         }
       },
       child: Scaffold(
-        appBar: const CustomAppBar(),
+        // appBar: const CustomAppBar(), // AppBarを廃止
         body: SafeArea(
           child: Column(
             children: <Widget>[
@@ -311,50 +407,96 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
                   ],
                 ),
               ),
-              // --- ログ表示部分を LogCardList に変更 ---
+              // --- ログ表示部分 ---
               Expanded(
-                child: LogCardList( // LogTable から LogCardList に変更
-                  logs: _logs,
-                  onEditLog: _showEditLogDialog, // コールバックはそのまま渡す
+                child: Padding( // FABとの重なりを避けるためのパディング
+                  padding: EdgeInsets.only(bottom: logListBottomPadding),
+                  child: Stack( // LogCardListとスクロールインジケータを重ねる
+                    children: [
+                      LogCardList(
+                        logs: _logs,
+                        onEditLog: _showEditLogDialog,
+                        scrollController: _scrollController, // LogCardListにScrollControllerを渡す
+                      ),
+                      if (_showScrollUpIndicator)
+                        _buildScrollIndicator(Icons.keyboard_arrow_up, Alignment.topCenter, () {
+                          _scrollController.animateTo(
+                            _scrollController.position.minScrollExtent,
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeOut,
+                          );
+                        }),
+                      if (_showScrollDownIndicator)
+                        _buildScrollIndicator(Icons.keyboard_arrow_down, Alignment.bottomCenter, () {
+                           _scrollController.animateTo(
+                            _scrollController.position.maxScrollExtent,
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeOut,
+                          );
+                        }),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
         ),
-        floatingActionButton: Stack(
-          children: <Widget>[
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: Padding(
-                padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 16.0),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked, // FAB群を中央に配置
+        floatingActionButton: Padding( // Row全体に下パディングを適用
+          padding: EdgeInsets.only(bottom: fabBottomPadding),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround, // ボタン間のスペースを均等に
+            crossAxisAlignment: CrossAxisAlignment.center, // 垂直方向の中央揃え
+            children: <Widget>[
+              // 設定ボタン (左)
+              SizedBox(
+                width: smallFabDimension,
+                height: smallFabDimension,
+                child: FloatingActionButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                    );
+                  },
+                  tooltip: '設定',
+                  heroTag: 'settingsFab',
+                  backgroundColor: Colors.grey[700],
+                  foregroundColor: Colors.white,
+                  shape: const CircleBorder(),
+                  child: const Icon(Icons.settings, size: smallIconSize),
+                ),
+              ),
+              // スタート・ストップボタン (中央)
+              SizedBox(
+                width: fabDimension,
+                height: fabDimension,
                 child: FloatingActionButton(
                   onPressed: _isRunning ? _handleStopStopwatch : _handleStartStopwatch,
                   tooltip: _isRunning ? '停止' : '開始',
-                  heroTag: 'startStopFab', // heroTagはユニークにする
+                  heroTag: 'startStopFab',
                   backgroundColor: _isRunning ? stopColor : primaryColor,
                   foregroundColor: Colors.white,
-                  child: Icon(_isRunning ? Icons.stop : Icons.play_arrow, size: 36.0),
+                  shape: _isRunning ? null : const CircleBorder(),
+                  child: Icon(_isRunning ? Icons.stop : Icons.play_arrow, size: iconSize),
                 ),
               ),
-            ),
-            Align(
-              alignment: Alignment.bottomRight,
-              child: Padding(
-                padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).padding.bottom + 16.0,
-                  right: 16.0
-                ),
+              // ラップ記録ボタン (右)
+              SizedBox(
+                width: smallFabDimension,
+                height: smallFabDimension,
                 child: FloatingActionButton(
-                  onPressed: _isRunning ? _handleLapRecord : null, // 計測中のみ有効
+                  onPressed: _isRunning ? _handleLapRecord : null,
                   tooltip: 'ラップ記録',
                   heroTag: 'lapRecordFab',
-                  backgroundColor: !_isRunning ? disabledColor : secondaryColor, // 計測中でなければ無効色
+                  backgroundColor: !_isRunning ? disabledColor : secondaryColor,
                   foregroundColor: Colors.white,
-                  child: const Icon(Icons.format_list_bulleted_add, size: 36.0),
+                  shape: const CircleBorder(),
+                  child: const Icon(Icons.format_list_bulleted_add, size: smallIconSize),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
