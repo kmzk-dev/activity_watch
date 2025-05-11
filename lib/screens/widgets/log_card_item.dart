@@ -19,7 +19,7 @@ class LogCardItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context); // 現在のテーマを取得
+    //final theme = Theme.of(context); // 現在のテーマを取得
     final bool isCommentEmpty = log.memo.isEmpty;
 
     // LAP TIME のテキストスタイル（色を LogEntry の labelColor から取得）

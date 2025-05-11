@@ -14,9 +14,10 @@ import '../utils/session_dialog_utils.dart';
 import '../utils/session_storage.dart';
 import '../utils/string_utils.dart';
 
-import './widgets/log_card_carousel.dart'; 
-import './settings_screen.dart'; 
-import './widgets/log_color_summary_chart.dart'; // LogColorSummaryChartをインポート
+import './widgets/log_card_carousel.dart';
+import './settings_screen.dart';
+import './widgets/log_color_summary_chart.dart';
+import './widgets/timer_display.dart'; // ★ 新しいTimerDisplayウィジェットをインポート
 
 class StopwatchScreenWidget extends StatefulWidget {
   const StopwatchScreenWidget({super.key});
@@ -25,12 +26,11 @@ class StopwatchScreenWidget extends StatefulWidget {
   State<StopwatchScreenWidget> createState() => _StopwatchScreenWidgetState();
 }
 
-// WidgetsBindingObserver をミックスイン
 class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with WidgetsBindingObserver {
   final Stopwatch _stopwatch = Stopwatch();
   Timer? _timer;
   bool _isRunning = false;
-  String _elapsedTime = '00:00:00:00';
+  String _elapsedTime = '00:00:00:00'; // 初期値を設定
   final TextEditingController _sessionTitleController = TextEditingController();
   final TextEditingController _sessionCommentController = TextEditingController();
 
@@ -150,10 +150,10 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       actualSessionStartTime: _currentActualSessionStartTime!,
       startTime: startTime,
       endTime: currentTimeForLog,
-      memo: '',
-      colorLabelName: colorLabels.keys.first,
+      memo: '', // 初期メモは空
+      colorLabelName: colorLabels.keys.first, // デフォルトの色ラベル
     );
-    newLog.calculateDuration();
+    newLog.calculateDuration(); // 忘れずにdurationを計算
     if (mounted) {
       setState(() {
         _logs.add(newLog);
@@ -161,13 +161,13 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
         _stopwatch.stop();
         _isRunning = false;
         _elapsedTime = formatDisplayTime(currentElapsedDuration);
-        _currentPage = 0;
+        _currentPage = 0; // 停止時はカルーセルを先頭に戻す
       });
       FocusScope.of(context).unfocus();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_pageController.hasClients && _getDisplayLogs().isNotEmpty) {
           _pageController.animateToPage(
-            0,
+            0, // カルーセルの先頭ページ
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOut,
           );
@@ -185,19 +185,19 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       actualSessionStartTime: _currentActualSessionStartTime!,
       startTime: startTime,
       endTime: currentTimeForLog,
-      memo: '',
-      colorLabelName: colorLabels.keys.first,
+      memo: '', // 初期メモは空
+      colorLabelName: colorLabels.keys.first, // デフォルトの色ラベル
     );
-    newLog.calculateDuration();
+    newLog.calculateDuration(); // 忘れずにdurationを計算
     if (mounted) {
       setState(() {
         _logs.add(newLog);
-        _currentPage = 0;
+        _currentPage = 0; // ラップ記録時もカルーセルを先頭に戻す
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_pageController.hasClients && _getDisplayLogs().isNotEmpty) {
            _pageController.animateToPage(
-            0,
+            0, // カルーセルの先頭ページ
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOut,
           );
@@ -209,15 +209,16 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   Future<void> _showEditLogDialog(int pageViewIndex) async {
     if (_logs.isEmpty || pageViewIndex < 0 ) return;
 
+    // pageViewIndex は表示順 (新しいものが0) なので、_logs の実際のインデックスに変換
     final int actualLogIndex = _logs.length - 1 - pageViewIndex;
 
     if (actualLogIndex < 0 || actualLogIndex >= _logs.length) {
-      print('Error: Invalid actualLogIndex ($actualLogIndex) derived from pageViewIndex ($pageViewIndex).');
+      // print('Error: Invalid actualLogIndex ($actualLogIndex) derived from pageViewIndex ($pageViewIndex).');
       return;
     }
 
-    await loadSuggestionsFromPrefs(force: true);
-    if (!mounted) return;
+    await loadSuggestionsFromPrefs(force: true); // ダイアログ表示直前に最新のサジェストを読み込む
+    if (!mounted) return; // mountedチェックを追加
     final LogEntry currentLog = _logs[actualLogIndex];
     final Map<String, String>? result = await showLogCommentEditDialog(
       context: context,
@@ -227,16 +228,17 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       katakanaToHiraganaConverter: katakanaToHiragana,
       availableColorLabels: colorLabels,
     );
-    if (result != null && mounted) {
+    if (result != null && mounted) { // mountedチェックを追加
       final String newMemo = result['memo'] ?? currentLog.memo;
       final String newColorLabel = result['colorLabel'] ?? currentLog.colorLabelName;
       setState(() {
         _logs[actualLogIndex].memo = newMemo;
         _logs[actualLogIndex].colorLabelName = newColorLabel;
+        // 必要であれば、ここで _logs リストを再ソートしたり、表示を更新するロジックを追加
       });
     }
-    if (!mounted) return;
-    FocusScope.of(context).unfocus();
+    if (!mounted) return; // mountedチェックを追加
+    FocusScope.of(context).unfocus(); // ダイアログが閉じた後にフォーカスを外す
   }
 
   Future<void> _showSaveSessionDialog() async {
@@ -257,12 +259,12 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     final Map<String, String>? sessionData = await showSessionDetailsInputDialog(
       context: context,
       dialogTitle: 'セッションを保存',
-      initialTitle: '',
-      initialComment: '',
+      initialTitle: '', // 新規保存なので空
+      initialComment: '', // 新規保存なので空
       positiveButtonText: '保存',
     );
-    if (!mounted) return;
-    FocusScope.of(context).unfocus();
+    if (!mounted) return; // mountedチェックを追加
+    FocusScope.of(context).unfocus(); // ダイアログが閉じた後にフォーカスを外す
     if (sessionData != null && sessionData['title'] != null && sessionData['title']!.isNotEmpty) {
       await saveSession(
         context: context,
@@ -271,9 +273,11 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
         logs: _logs,
         savedSessionsKey: _savedSessionsKey,
       );
+      // 保存成功のSnackBarはsaveSession関数内で表示される
     }
   }
 
+  // 表示用のログリストを取得する（新しいログが先頭に来るように逆順にする）
   List<LogEntry> _getDisplayLogs() {
     return _logs.reversed.toList();
   }
@@ -281,19 +285,25 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   @override
   Widget build(BuildContext context) {
     final Color primaryColor = Theme.of(context).colorScheme.primary;
-    final Color stopColor = Colors.redAccent;
+    final Color stopColor = Colors.redAccent; // 停止ボタンの色
     final Color secondaryColor = Theme.of(context).colorScheme.secondary;
-    final Color disabledColor = Colors.grey[400]!;
-    const double fabDimension = 112.0 * 0.9;
-    const double iconSize = 72.0 * 0.9;
-    const double smallFabDimension = fabDimension / 2;
-    const double smallIconSize = iconSize / 2;
-    final double fabBottomPadding = MediaQuery.of(context).padding.bottom + 16.0;
+    final Color disabledColor = Colors.grey[400]!; // 無効時のボタン色
 
-    const double carouselHeight = 160.0;
-    // logAreaBottomPaddingはExpandedの親のPaddingなので、Expandedが使える高さを制御する
-    // この値を小さくすると、Expandedが使える高さが増える
-    final double logAreaBottomPadding = fabDimension + 16.0; // 少し減らしてみる
+    // FABのサイズ定義 (画像イメージに近づけるため調整)
+    const double largeFabDimension = 88.0;
+    const double smallFabDimension = 64.0;
+    const double largeIconSize = 56.0;
+    const double smallIconSize = 32.0;
+
+    // FABの画面下部からのパディング
+    final double fabBottomPadding = MediaQuery.of(context).padding.bottom + 24.0; // 少し多めに
+
+    // ログ表示エリアの高さ関連
+    const double carouselHeight = 160.0; // LogCardItemの高さに合わせる
+    // ログ表示エリアがFABと重ならないようにするためのPadding
+    // (smallFabDimensionでは小さいのでlargeFabDimensionを基準にするか、固定値を設定)
+    final double logAreaBottomPadding = largeFabDimension + fabBottomPadding - MediaQuery.of(context).padding.bottom + 16.0;
+
 
     final displayLogsForCarousel = _getDisplayLogs();
 
@@ -302,40 +312,37 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       onVisibilityChanged: (visibilityInfo) {
         final visiblePercentage = visibilityInfo.visibleFraction * 100;
         if (mounted && visiblePercentage > 50) {
-          loadSuggestionsFromPrefs(force: true);
+          loadSuggestionsFromPrefs(force: true); // 画面表示時にサジェストを強制読み込み
         }
       },
       child: Scaffold(
         body: SafeArea(
+          // SafeAreaの上下のpaddingを無効にする (TimerDisplayで画面上部まで表示するため)
+          top: false,
+          bottom: false, // FABのために下部はSafeAreaを有効にしておくか、個別にpadding調整
           child: Column(
             children: <Widget>[
+              // --- ★ タイマー表示部分を新しいウィジェットに置き換え ---
+              TimerDisplay(elapsedTime: _elapsedTime),
+              // --- アクションボタン (保存・共有) ---
               Padding(
-                padding: const EdgeInsets.only(top: 48.0, bottom: 32.0),
-                child: Text(
-                  _elapsedTime,
-                  style: const TextStyle(
-                    fontSize: 56.0,
-                    fontWeight: FontWeight.bold,
-                    fontFeatures: [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0),
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0), // 上下のpaddingを0に
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     Tooltip(
                       message: '現在のログを保存',
                       child: IconButton(
-                        icon: const Icon(Icons.save),
+                        icon: const Icon(Icons.save_alt_outlined, size: 28), // アイコンとサイズ調整
+                        color: Colors.grey[700], // アイコン色調整
                         onPressed: (_logs.isNotEmpty && !_isRunning) ? _showSaveSessionDialog : null,
                       ),
                     ),
                     Tooltip(
                       message: 'ログを共有 (CSV)',
                       child: IconButton(
-                        icon: const Icon(Icons.share),
+                        icon: const Icon(Icons.share_outlined, size: 28), // アイコンとサイズ調整
+                        color: Colors.grey[700], // アイコン色調整
                         onPressed: _logs.isNotEmpty
                             ? () => shareLogsAsCsvText(context, _logs)
                             : null,
@@ -347,14 +354,14 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
               // --- ログ表示エリア ---
               Expanded(
                 child: Padding(
-                  padding: EdgeInsets.only(bottom: logAreaBottomPadding), 
-                  child: SingleChildScrollView( // ColumnをSingleChildScrollViewでラップ
+                  // 下方向のPaddingを調整してFABとの重なりを避ける
+                  padding: EdgeInsets.only(bottom: logAreaBottomPadding),
+                  child: SingleChildScrollView( // Column全体をスクロール可能に
                     child: Column(
-                      // mainAxisSize: MainAxisSize.min, // SingleChildScrollViewの子なのでminでも良いが、Expanded内のためmaxでも可
                       children: [
-                        LogColorSummaryChart(logs: _logs, chartHeight: 80.0), // chartHeightを少し小さくしてみる
+                        LogColorSummaryChart(logs: _logs, chartHeight: 80.0),
                         SizedBox(
-                          height: carouselHeight, // カルーセルの高さは維持
+                          height: carouselHeight,
                           child: LogCardCarousel(
                             logs: displayLogsForCarousel,
                             onEditLog: _showEditLogDialog,
@@ -364,12 +371,38 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
                         ),
                         if (displayLogsForCarousel.isNotEmpty)
                           Padding(
-                            padding: const EdgeInsets.only(top: 4.0, bottom: 8.0), // ページ番号の下にも少し余白
+                            padding: const EdgeInsets.only(top: 4.0, bottom: 8.0),
                             child: Text(
                               '${_currentPage + 1} / ${displayLogsForCarousel.length}',
                               style: TextStyle(color: Colors.grey[600], fontSize: 12.0),
                             ),
                           ),
+                        // ★★★ カルーセル下の意図しない要素 (プレースホルダー) を削除 ★★★
+                        // Padding(
+                        //   padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+                        //   child: Container(
+                        //     height: 150,
+                        //     width: double.infinity,
+                        //     decoration: BoxDecoration(
+                        //       color: Colors.grey[200], // ライトグレー
+                        //       borderRadius: BorderRadius.circular(15.0),
+                        //     ),
+                        //     child: Column(
+                        //       mainAxisAlignment: MainAxisAlignment.end,
+                        //       children: [
+                        //         Container(
+                        //           width: 60,
+                        //           height: 6,
+                        //           margin: const EdgeInsets.only(bottom: 10),
+                        //           decoration: BoxDecoration(
+                        //             color: Colors.grey[400],
+                        //             borderRadius: BorderRadius.circular(3),
+                        //           ),
+                        //         ),
+                        //       ],
+                        //     ),
+                        //   ),
+                        // ),
                       ],
                     ),
                   ),
@@ -380,53 +413,57 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
         ),
         floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
         floatingActionButton: Padding(
-          padding: EdgeInsets.only(bottom: fabBottomPadding),
+          padding: EdgeInsets.only(bottom: fabBottomPadding - (MediaQuery.of(context).padding.bottom)), // padding調整
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center, // ボタンの垂直方向の位置を中央に
             children: <Widget>[
+              // 左ボタン (設定)
               SizedBox(
                 width: smallFabDimension,
                 height: smallFabDimension,
                 child: FloatingActionButton(
+                  heroTag: 'settingsFab_new',
                   onPressed: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const SettingsScreen()),
                     );
                   },
-                  tooltip: '設定',
-                  heroTag: 'settingsFab',
-                  backgroundColor: Colors.grey[700],
-                  foregroundColor: Colors.white,
+                  backgroundColor: Colors.grey[300], // 背景色を薄いグレーに
+                  elevation: 2,
                   shape: const CircleBorder(),
-                  child: const Icon(Icons.settings, size: smallIconSize),
+                  child: Icon(Icons.settings_outlined, color: Colors.grey[700], size: smallIconSize), // アイコン変更
                 ),
               ),
+              // 中央ボタン (開始/停止)
               SizedBox(
-                width: fabDimension,
-                height: fabDimension,
+                width: largeFabDimension,
+                height: largeFabDimension,
                 child: FloatingActionButton(
+                  heroTag: 'startStopFab_new',
                   onPressed: _isRunning ? _handleStopStopwatch : _handleStartStopwatch,
-                  tooltip: _isRunning ? '停止' : '開始',
-                  heroTag: 'startStopFab',
-                  backgroundColor: _isRunning ? stopColor : primaryColor,
-                  foregroundColor: Colors.white,
-                  shape: _isRunning ? null : const CircleBorder(),
-                  child: Icon(_isRunning ? Icons.stop : Icons.play_arrow, size: iconSize),
+                  backgroundColor: _isRunning ? stopColor : primaryColor, // 状態に応じて色を変更
+                  elevation: 4,
+                  shape: const CircleBorder(), // 円形を維持
+                  child: Icon(
+                    _isRunning ? Icons.stop_rounded : Icons.play_arrow_rounded, // アイコン変更
+                    color: Colors.white,
+                    size: largeIconSize,
+                  ),
                 ),
               ),
+              // 右ボタン (ラップ記録)
               SizedBox(
                 width: smallFabDimension,
                 height: smallFabDimension,
                 child: FloatingActionButton(
+                  heroTag: 'lapRecordFab_new',
                   onPressed: _isRunning ? _handleLapRecord : null,
-                  tooltip: 'ラップ記録',
-                  heroTag: 'lapRecordFab',
-                  backgroundColor: !_isRunning ? disabledColor : secondaryColor,
-                  foregroundColor: Colors.white,
+                  backgroundColor: _isRunning ? secondaryColor : disabledColor, // 状態に応じて色を変更
+                  elevation: 2,
                   shape: const CircleBorder(),
-                  child: const Icon(Icons.format_list_bulleted_add, size: smallIconSize),
+                  child: Icon(Icons.flag_outlined, color: Colors.white, size: smallIconSize), // アイコン変更
                 ),
               ),
             ],
