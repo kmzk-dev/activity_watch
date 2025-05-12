@@ -40,7 +40,7 @@ class TimerDisplay extends StatelessWidget {
         right: 20.0, // 左右のパディングは変更なし
       ),
       decoration: BoxDecoration(
-        color: Colors.grey[850], // 画像に近い濃いグレー
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(25.0),
           bottomRight: Radius.circular(25.0),
@@ -56,7 +56,6 @@ class TimerDisplay extends StatelessWidget {
             style: const TextStyle(
               fontSize: 64.0,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
               fontFeatures: [FontFeature.tabularFigures()],
             ),
           ),
@@ -67,7 +66,6 @@ class TimerDisplay extends StatelessWidget {
               style: TextStyle(
                 fontSize: 22.0,
                 fontWeight: FontWeight.w600,
-                color: Colors.white.withOpacity(0.8),
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),

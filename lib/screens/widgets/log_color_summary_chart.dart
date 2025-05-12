@@ -14,6 +14,7 @@ class LogColorSummaryChart extends StatelessWidget {
 
   Map<String, Duration> _calculateColorLabelDurations() {
     final Map<String, Duration> colorDurations = {};
+    // colorLabels からキーを取得して初期化
     for (var labelName in colorLabels.keys) {
       colorDurations[labelName] = Duration.zero;
     }
@@ -40,6 +41,10 @@ class LogColorSummaryChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context); // テーマを取得
+    final ColorScheme colorScheme = theme.colorScheme; // カラーキームを取得
+    final TextTheme textTheme = theme.textTheme; // テキストテーマを取得
+
     final Map<String, Duration> colorLabelDurations = _calculateColorLabelDurations();
     final Duration totalSessionDuration = _calculateTotalSessionDuration();
     final double totalSessionDurationInSeconds = totalSessionDuration.inSeconds > 0 ? totalSessionDuration.inSeconds.toDouble() : 1.0;
@@ -59,7 +64,7 @@ class LogColorSummaryChart extends StatelessWidget {
 
         const double labelTextSize = 10.0;
         final textPainter = TextPainter(
-          text: const TextSpan(text: "X", style: TextStyle(fontSize: labelTextSize)),
+          text: TextSpan(text: "X", style: TextStyle(fontSize: labelTextSize, color: textTheme.bodySmall?.color)),
           textDirection: Directionality.of(context),
           textScaler: MediaQuery.textScalerOf(context),
         )..layout(minWidth: 0, maxWidth: double.infinity);
@@ -80,6 +85,7 @@ class LogColorSummaryChart extends StatelessWidget {
         maxBarHeight = max(0, maxBarHeight);
 
         if (logs.isEmpty) {
+          // colorLabels はユーザー定義の色なので、そのまま使用
           colorLabels.forEach((labelName, defaultColor) {
             chartItems.add(
               Expanded(
@@ -92,7 +98,11 @@ class LogColorSummaryChart extends StatelessWidget {
                         width: 20.0,
                         height: initialMinBarHeight, // 初期表示のバーの高さ
                         decoration: BoxDecoration(
-                          color: defaultColor.withOpacity(0.5),
+                          // 修正: ログがない場合のバーの色。テーマのアクセントカラーや無効化された色などを検討
+                          // defaultColor は colorLabels からの色なので、ここではそれを薄くして使用。
+                          // よりテーマに合わせるなら、colorScheme.surfaceVariant や theme.disabledColor などを使用。
+                          color: defaultColor.withAlpha((255 * 0.3).round()), // ★修正: withOpacity(0.3) から変更 (alpha: 77)
+                          // color: colorScheme.surfaceVariant.withAlpha((255 * 0.5).round()), // テーマに合わせた代替案 (alpha: 128)
                           borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(4.0),
                             topRight: Radius.circular(4.0),
@@ -103,7 +113,11 @@ class LogColorSummaryChart extends StatelessWidget {
                         const SizedBox(height: paddingBelowBar),
                         Text(
                           labelName,
-                          style: TextStyle(fontSize: labelTextSize, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7)),
+                          style: TextStyle(
+                            fontSize: labelTextSize,
+                            // 修正: ログがない場合のラベルテキストの色。textThemeの補助的な色を使用。
+                            color: textTheme.bodySmall?.color?.withAlpha((255 * 0.7).round()) ?? colorScheme.onSurface.withAlpha((255 * 0.7).round()), // ★修正: withOpacity(0.7) から変更 (alpha: 179)
+                          ),
                           textAlign: TextAlign.center,
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
@@ -116,8 +130,10 @@ class LogColorSummaryChart extends StatelessWidget {
             );
           });
         } else {
+          // colorLabels はユーザー定義の色なので、そのまま使用
           colorLabels.forEach((labelName, defaultColor) {
             final Duration duration = colorLabelDurations[labelName] ?? Duration.zero;
+            // barColor は colorLabels からの色なので、そのまま使用
             final Color barColor = defaultColor;
 
             final double barHeightRatio = totalSessionDurationInSeconds > 0 && duration.inSeconds > 0
@@ -144,7 +160,7 @@ class LogColorSummaryChart extends StatelessWidget {
                         width: 20.0,
                         height: finalBarHeight,
                         decoration: BoxDecoration(
-                          color: barColor,
+                          color: barColor, // colorLabels の色をそのまま使用
                           borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(4.0),
                             topRight: Radius.circular(4.0),
@@ -155,7 +171,11 @@ class LogColorSummaryChart extends StatelessWidget {
                         const SizedBox(height: paddingBelowBar),
                         Text(
                           labelName,
-                          style: TextStyle(fontSize: labelTextSize, color: Theme.of(context).textTheme.bodySmall?.color),
+                          style: TextStyle(
+                            fontSize: labelTextSize,
+                            // 修正: ログがある場合のラベルテキストの色。textTheme の標準的な色を使用。
+                            color: textTheme.bodySmall?.color ?? colorScheme.onSurface,
+                          ),
                           textAlign: TextAlign.center,
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
@@ -170,35 +190,29 @@ class LogColorSummaryChart extends StatelessWidget {
         }
 
         List<Widget> gridLines = [];
-        // --- 罫線描画ロジックの修正 ---
-        double gridLineDrawingAreaHeight; // 実際に罫線を描画する高さの範囲
-        double gridLineBottomOffsetAnchor;  // 罫線のbottomオフセットの基準点 (0 またはラベル等の高さ)
+        // --- 罫線描画ロジック ---
+        double gridLineDrawingAreaHeight;
+        double gridLineBottomOffsetAnchor;
 
         if (canShowLabelAndPadding) {
-            // ラベル等が表示される場合、罫線はその上に描画される
             gridLineDrawingAreaHeight = stackAreaHeight - nonBarElementsHeight - safetyBuffer;
             gridLineBottomOffsetAnchor = nonBarElementsHeight;
         } else {
-            // ラベル等が表示されない場合、罫線はstackArea全体に対して描画される
             gridLineDrawingAreaHeight = stackAreaHeight - safetyBuffer;
             gridLineBottomOffsetAnchor = 0;
         }
-        gridLineDrawingAreaHeight = max(0, gridLineDrawingAreaHeight); // 0未満にならないように
+        gridLineDrawingAreaHeight = max(0, gridLineDrawingAreaHeight);
 
-        // gridLineDrawingAreaHeight が非常に小さい場合でも罫線が最低限見えるように調整
-        if (gridLineDrawingAreaHeight < 4.0 && stackAreaHeight > safetyBuffer + 4.0) { // 4分割するには最低4pxは欲しい
-             gridLineDrawingAreaHeight = 4.0; // 最小でも4pxのエリアで分割を試みる
+        if (gridLineDrawingAreaHeight < 4.0 && stackAreaHeight > safetyBuffer + 4.0) {
+             gridLineDrawingAreaHeight = 4.0;
         }
 
-
-        if (gridLineDrawingAreaHeight > 1.0) { // 1ピクセル以上の描画領域がある場合のみ罫線を描画
-            for (int i = 0; i <= 4; i++) { // 0%, 25%, 50%, 75%, 100% の位置に罫線
+        if (gridLineDrawingAreaHeight > 1.0) {
+            for (int i = 0; i <= 4; i++) {
                 double relativeOffset = (gridLineDrawingAreaHeight / 4) * i;
                 double bottomOffset = gridLineBottomOffsetAnchor + relativeOffset;
 
-                // 罫線が描画領域内に収まるように最終調整
-                // safetyBuffer を考慮し、stackAreaHeight を超えないようにする
-                if (bottomOffset <= stackAreaHeight - safetyBuffer + 0.5 && bottomOffset >= gridLineBottomOffsetAnchor -0.5) { // 0.5は描画の誤差許容
+                if (bottomOffset <= stackAreaHeight - safetyBuffer + 0.5 && bottomOffset >= gridLineBottomOffsetAnchor -0.5) {
                     gridLines.add(
                         Positioned(
                         bottom: bottomOffset,
@@ -206,7 +220,9 @@ class LogColorSummaryChart extends StatelessWidget {
                         right: 0,
                         child: Container(
                             height: 1.0,
-                            color: Colors.grey[300],
+                            // 修正: 罫線の色。テーマの区切り線色 (dividerColor) や薄いグレーを使用。
+                            color: theme.dividerColor.withAlpha((255 * 0.5).round()), // ★修正: withOpacity(0.5) から変更 (alpha: 128)
+                            // color: Colors.grey[300], // 修正前: ハードコードされたグレー
                         ),
                         ),
                     );

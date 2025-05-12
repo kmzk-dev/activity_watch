@@ -18,10 +18,10 @@ class LogCardList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // リスト全体の背景色を白に設定
-    final Color listBackgroundColor = Colors.white;
+    //final Color listBackgroundColor = Colors.white;
 
     return Container(
-      color: listBackgroundColor, // ListView全体の背景色を白に変更
+      //color: listBackgroundColor, // ListView全体の背景色を白に変更
       child: logs.isEmpty
           // ログがない場合は「NO DATA」と表示
           ? Center(

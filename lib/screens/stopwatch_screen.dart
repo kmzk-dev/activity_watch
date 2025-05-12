@@ -448,12 +448,12 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
           onLapRecord: _handleLapRecord,
           onSettings: _navigateToSettings,
           // StopwatchFloatingActionButton に渡す色はテーマから取得
-          primaryColor: colorScheme.primary,
-          stopColor: colorScheme.error, // 停止ボタンはエラーカラーなど意味的な色を割り当て
-          secondaryColor: colorScheme.secondary,
+          //primaryColor: colorScheme.primary,
+          //stopColor: colorScheme.error, // 停止ボタンはエラーカラーなど意味的な色を割り当て
+          //secondaryColor: colorScheme.secondary,
           // disabledColor: theme.disabledColor, // ThemeData.disabledColor を使用
           // または、より明示的にColorSchemeから
-          disabledColor: colorScheme.onSurface.withOpacity(0.38), // Material Design の disabled 色の標準的な表現
+          //disabledColor: colorScheme.onSurface.withOpacity(0.38), // Material Design の disabled 色の標準的な表現
         ),
       ),
     );

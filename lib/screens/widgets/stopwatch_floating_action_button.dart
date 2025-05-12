@@ -7,10 +7,10 @@ class StopwatchFloatingActionButton extends StatelessWidget {
   final VoidCallback? onStopStopwatch;
   final VoidCallback? onLapRecord;
   final VoidCallback? onSettings;
-  final Color? primaryColor;
-  final Color? stopColor;
-  final Color? secondaryColor;
-  final Color? disabledColor;
+  // final Color? primaryColor; // マテリアルテーマ準拠のため削除、またはテーマから取得するように変更
+  // final Color? stopColor; // マテリアルテーマ準拠のため削除、またはテーマから取得するように変更
+  // final Color? secondaryColor; // マテリアルテーマ準拠のため削除、またはテーマから取得するように変更
+  // final Color? disabledColor; // マテリアルテーマ準拠のため削除、またはテーマから取得するように変更
 
   const StopwatchFloatingActionButton({
     super.key,
@@ -19,18 +19,16 @@ class StopwatchFloatingActionButton extends StatelessWidget {
     this.onStopStopwatch,
     this.onLapRecord,
     this.onSettings,
-    this.primaryColor,
-    this.stopColor,
-    this.secondaryColor,
-    this.disabledColor,
+    // this.primaryColor, // マテリアルテーマ準拠のため削除
+    // this.stopColor, // マテリアルテーマ準拠のため削除
+    // this.secondaryColor, // マテリアルテーマ準拠のため削除
+    // this.disabledColor, // マテリアルテーマ準拠のため削除
   });
 
   @override
   Widget build(BuildContext context) {
-    final Color currentPrimaryColor = primaryColor ?? Theme.of(context).colorScheme.primary;
-    final Color currentStopColor = stopColor ?? Colors.redAccent;
-    final Color currentSecondaryColor = secondaryColor ?? Theme.of(context).colorScheme.secondary;
-    final Color currentDisabledColor = disabledColor ?? Colors.grey[400]!;
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
 
     // FABのサイズ定義
     const double largeFabDimension = 88.0;
@@ -41,19 +39,11 @@ class StopwatchFloatingActionButton extends StatelessWidget {
     // ボタン群（Row）が占める実際の高さ（最大のFABの高さ）
     const double buttonsRowHeight = largeFabDimension;
 
-    // StopwatchFloatingActionButtonウィジェット全体の高さを定義します。
-    // この高さは、BottomNavigationBarの上に表示されるFAB領域全体の高さです。
-    // ボタン群がこの高さの中で中央に配置されるように、
-    // ボタン群の高さに加えて、上下のパディング（視覚的なマージン）を考慮します。
-    // 例えば、ボタン群の上と下にそれぞれ16ずつの余白（合計32）を設ける場合：
-    const double verticalPaddingTotal = 32.0; // ★ この値を調整して垂直位置を微調整
+    const double verticalPaddingTotal = 32.0;
     const double fabWidgetHeight = buttonsRowHeight + verticalPaddingTotal;
 
     return Container(
       height: fabWidgetHeight,
-      // 背景色で全体の領域を確認 (デバッグが終わったら削除またはコメントアウト)
-      color: Colors.grey.withOpacity(0.2),
-      // このContainer（高さfabWidgetHeight）の中でRowを中央に配置
       alignment: Alignment.center,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -66,10 +56,12 @@ class StopwatchFloatingActionButton extends StatelessWidget {
             child: FloatingActionButton(
               heroTag: 'settingsFab_separated',
               onPressed: onSettings,
-              backgroundColor: Colors.grey[300],
+              // backgroundColor: Colors.grey[300], // 修正: テーマの色を使用
+              //backgroundColor: theme.colorScheme.surfaceVariant, // または適切なテーマの色
               elevation: 2,
               shape: const CircleBorder(),
-              child: Icon(Icons.settings_outlined, color: Colors.grey[700], size: smallIconSize),
+              // child: Icon(Icons.settings_outlined, color: Colors.grey[700], size: smallIconSize), // 修正: テーマの色を使用
+              child: Icon(Icons.settings_outlined, color: theme.colorScheme.onSurfaceVariant, size: smallIconSize),
             ),
           ),
           // 中央ボタン (開始/停止)
@@ -79,12 +71,15 @@ class StopwatchFloatingActionButton extends StatelessWidget {
             child: FloatingActionButton(
               heroTag: 'startStopFab_separated',
               onPressed: isRunning ? onStopStopwatch : onStartStopwatch,
-              backgroundColor: isRunning ? currentStopColor : currentPrimaryColor,
+              // backgroundColor: isRunning ? currentStopColor : currentPrimaryColor, // 修正: テーマの色を使用
+              backgroundColor: isRunning ? colorScheme.error : colorScheme.primary,
               elevation: 4,
               shape: const CircleBorder(),
               child: Icon(
                 isRunning ? Icons.stop_rounded : Icons.play_arrow_rounded,
-                color: Colors.white,
+                // color: Colors.white, // 修正: アイコンの色はテーマによって自動的に決定されることが多い
+                // 必要であれば明示的に指定: colorScheme.onError または colorScheme.onPrimary
+                color: isRunning ? colorScheme.onError : colorScheme.onPrimary,
                 size: largeIconSize,
               ),
             ),
@@ -96,10 +91,13 @@ class StopwatchFloatingActionButton extends StatelessWidget {
             child: FloatingActionButton(
               heroTag: 'lapRecordFab_separated',
               onPressed: isRunning ? onLapRecord : null,
-              backgroundColor: isRunning ? currentSecondaryColor : currentDisabledColor,
+              // backgroundColor: isRunning ? currentSecondaryColor : currentDisabledColor, // 修正: テーマの色を使用
+              backgroundColor: isRunning ? colorScheme.secondary : theme.disabledColor.withOpacity(0.12), // 無効状態の背景色
+              foregroundColor: isRunning ? colorScheme.onSecondary : theme.disabledColor, // 無効状態のアイコン色
               elevation: 2,
               shape: const CircleBorder(),
-              child: Icon(Icons.timer_outlined, color: Colors.white, size: smallIconSize),
+              // child: Icon(Icons.timer_outlined, color: Colors.white, size: smallIconSize), // 修正: テーマの色を使用
+               child: Icon(Icons.timer_outlined, size: smallIconSize),
             ),
           ),
         ],

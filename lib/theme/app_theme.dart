@@ -1,48 +1,50 @@
-import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart'; // google_fonts パッケージをインポート
+// lib/theme/app_theme.dart
+
+//import 'package:flutter/material.dart';
+//import 'package:google_fonts/google_fonts.dart';
+//import './color_constants.dart'; // カラー定数ファイルをインポート
 
 // アプリケーションのテーマ定義
-final ThemeData appThemeData = ThemeData(
-  primarySwatch: Colors.blue, // アプリケーションのプライマリスウォッチ（主要な色のセット）
-  colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.blue).copyWith(
-    secondary: Colors.blueAccent, // セカンダリカラー（アクセントカラー）
-  ),
-  // --- フォント設定 ---
-  // GoogleFonts.notoSansJpTextTheme() を使用して、
-  // アプリケーション全体のテキストテーマに Noto Sans Japanese フォントを適用します。
-  // ThemeData(brightness: Brightness.light).textTheme を渡すことで、
-  // ライトテーマのデフォルトテキストスタイルをベースにフォントが適用されます。
-  // ダークテーマ対応など、より詳細な設定が必要な場合は、
-  // ThemeData.dark().textTheme なども考慮に入れることができます。
-  textTheme: GoogleFonts.notoSansJpTextTheme(
-    ThemeData(brightness: Brightness.light).textTheme,
-  ),
-  // --- ダイアログのテーマ設定 ---
-  dialogTheme: DialogTheme(
-    // ダイアログの角を丸くします。
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(16.0),
-    ),
-  ),
-  // --- データテーブルのテーマ設定 ---
-  dataTableTheme: DataTableThemeData(
-    dataRowMinHeight: 48, // データ行の最小の高さ
-    columnSpacing: 16, // 列間のスペース
-    // ヘッダー行のテキストスタイル
-    headingTextStyle: const TextStyle(
-        fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 14),
-  ),
-  // --- アイコンボタンのテーマ設定 ---
-  iconButtonTheme: IconButtonThemeData(
-    // IconButton.styleFrom は const ではないため、ThemeData 全体を const にできません。
-    style: IconButton.styleFrom(
-      foregroundColor: Colors.grey[700], // アイコンボタンの前景色（アイコンの色）
-    ),
-  ),
-  // --- ボトムナビゲーションバーのテーマ設定 ---
-  bottomNavigationBarTheme: BottomNavigationBarThemeData(
-    selectedItemColor: Colors.blue, // 選択されたアイテムの色
-    unselectedItemColor: Colors.grey, // 選択されていないアイテムの色
-    showUnselectedLabels: true, // 選択されていないアイテムのラベルを表示するかどうか
-  ),
-);
+//final ThemeData appThemeData = ThemeData(
+  // 全体の明るさをダークに設定
+  //brightness: Brightness.dark,
+
+  // --- 基本的な色の設定 ---
+  //colorScheme: ColorScheme(
+    //brightness: Brightness.dark, // 明るさ（ダークテーマ）
+    //primary: AppColors.button, // プライマリカラー（例: ボタン背景色など）
+    //onPrimary: AppColors.buttonText, // プライマリカラー上のテキストやアイコンの色
+    //secondary: AppColors.illustrationHighlight, // セカンダリカラー（例: 強調したい要素、フローティングアクションボタンなど）
+    //onSecondary: AppColors.buttonText, // セカンダリカラー上のテキストやアイコンの色 (buttonTextが適切か要検討)
+    //error: AppColors.error, // エラー発生時の色
+    //onError: AppColors.textOnError, // エラーカラー上のテキストやアイコンの色
+    //surface: AppColors.surface, // カード、ダイアログ、ボトムシートなどの表面色
+    //onSurface: AppColors.textOnSurface, // 表面色上のテキストやアイコンの色
+  //),
+  
+  //textTheme: GoogleFonts.notoSansJpTextTheme(
+  //  ThemeData(brightness: Brightness.dark).textTheme, // ベースのテーマをダークに
+  //),
+
+  //iconTheme: IconThemeData(
+  //  color: AppColors.icon
+  //),
+
+  //scaffoldBackgroundColor: AppColors.background,
+
+  // --- 以下、個別のウィジェットテーマは一旦破棄（コメントアウトまたは削除） ---
+  // appBarTheme: AppBarTheme(...),
+  //scaffoldBackgroundColor: AppColors.background,
+  // bottomNavigationBarTheme: BottomNavigationBarThemeData(...),
+  // dialogTheme: DialogTheme(...),
+  // iconButtonTheme: IconButtonThemeData(...),
+  // elevatedButtonTheme: ElevatedButtonThemeData(...),
+  // textButtonTheme: TextButtonThemeData(...),
+  // outlinedButtonTheme: OutlinedButtonThemeData(...),
+  // floatingActionButtonTheme: FloatingActionButtonThemeData(...),
+  // cardTheme: CardTheme(...),
+  // tooltipTheme: TooltipThemeData(...),
+  // dividerTheme: DividerThemeData(...),
+  // inputDecorationTheme: InputDecorationTheme(...),
+  // dataTableTheme: DataTableThemeData(...), // こちらも前回コメントアウトしたものでしたね
+//);
