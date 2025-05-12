@@ -1,9 +1,9 @@
 // main.dart
 import 'package:flutter/material.dart';
-import 'theme/app_theme.dart'; // アプリのテーマ設定をインポート
 import 'screens/saved_sessions_screen.dart'; // 保存済みセッション画面をインポート
 import 'screens/stopwatch_screen.dart'; // ストップウォッチ画面をインポート
-
+import 'util.dart';
+import 'theme.dart';
 // アプリケーションのエントリーポイント
 void main() {
   runApp(const ActivityWatchApp());
@@ -15,9 +15,18 @@ class ActivityWatchApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final brightness = View.of(context).platformDispatcher.platformBrightness;
+
+    // Retrieves the default theme for the platform
+    //TextTheme textTheme = Theme.of(context).textTheme;
+
+    // Use with Google Fonts package to use downloadable fonts
+    TextTheme textTheme = createTextTheme(context, "Noto Sans JP", "Noto Sans JP");
+
+    MaterialTheme theme = MaterialTheme(textTheme);
     return MaterialApp(
       title: 'Activity Watch', // アプリのタイトル
-      theme: appThemeData, // アプリのテーマを適用
+      theme: brightness == Brightness.light ? theme.light() : theme.dark(),
       home: const AppShell(), // メインの画面構造
       debugShowCheckedModeBanner: false, // デバッグバナーを非表示
     );

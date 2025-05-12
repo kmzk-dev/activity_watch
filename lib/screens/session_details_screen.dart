@@ -2,21 +2,20 @@
 import 'dart:convert'; // jsonDecode, jsonEncode のために必要
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // SharedPreferences のために必要
+import 'package:shared_preferences/shared_preferences.dart';
 
-import '../models/log_entry.dart'; // LogEntryモデルをインポート
-import '../models/saved_log_session.dart'; // SavedLogSessionモデルをインポート
-import '../utils/session_dialog_utils.dart'; // 共通セッション編集ダイアログ関数をインポート
-import '../utils/dialog_utils.dart'; // ログ編集ダイアログ関数をインポート
-import '../utils/session_storage.dart'; // 共通ストレージ関数をインポート (updateSession を利用)
-import '../screens/widgets/log_card_list.dart'; // 新しいLogCardListウィジェットをインポート
-import '../screens/widgets/log_color_summary_chart.dart'; // ★ グラフウィジェットをインポート
-import '../theme/color_constants.dart'; // カラーラベル定義をインポート
-import '../utils/string_utils.dart'; // 文字列ユーティリティ (カタカナ→ひらがな変換) をインポート
+import '../models/log_entry.dart';
+import '../models/saved_log_session.dart';
+import '../utils/session_dialog_utils.dart';
+import '../utils/dialog_utils.dart';
+import '../utils/session_storage.dart';
+import '../screens/widgets/log_card_list.dart';
+import '../screens/widgets/log_color_summary_chart.dart';
+import '../theme/color_constants.dart'; // colorLabels のために必要
+import '../utils/string_utils.dart';
 
-// セッション詳細を表示するStatefulWidget
 class SessionDetailsScreen extends StatefulWidget {
-  final SavedLogSession session; // 表示するセッションデータ
+  final SavedLogSession session;
 
   const SessionDetailsScreen({super.key, required this.session});
 
@@ -25,26 +24,18 @@ class SessionDetailsScreen extends StatefulWidget {
 }
 
 class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
-  late SavedLogSession _editableSession; // 編集可能なセッションデータ
-  List<String> _commentSuggestions = []; // コメントサジェスチョン (空のリストとして初期化)
+  late SavedLogSession _editableSession;
+  List<String> _commentSuggestions = [];
 
-  static const String _savedSessionsKey = 'saved_log_sessions'; // SharedPreferencesのキー
-  static const double _chartHeight = 200.0; // ★ グラフの固定の高さを定義
+  static const String _savedSessionsKey = 'saved_log_sessions';
+  static const double _chartHeight = 200.0;
 
   @override
   void initState() {
     super.initState();
-    // widgetから渡されたセッションデータを編集可能データとして初期化
     _editableSession = widget.session.copyWith();
-    // _loadSuggestions(); // UI変更のみに集中するため、サジェスト読み込みはコメントアウト
   }
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
-  // セッション全体の情報を編集するためのダイアログを表示する非同期関数
   Future<void> _showEditSessionDialog() async {
     final Map<String, String>? updatedData = await showSessionDetailsInputDialog(
       context: context,
@@ -61,7 +52,6 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
       final newTitle = updatedData['title']!;
       final newComment = updatedData['comment'];
 
-      // データに変更があった場合のみ更新処理を実行
       if (newTitle != _editableSession.title ||
           (newComment ?? '') != (_editableSession.sessionComment ?? '')) {
         setState(() {
@@ -75,7 +65,6 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
     }
   }
 
-  // 個別のログエントリを編集するためのダイアログを表示する非同期関数
   Future<void> _editLogEntry(int logIndex) async {
     if (logIndex < 0 || logIndex >= _editableSession.logEntries.length) return;
 
@@ -85,9 +74,9 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
       context: context,
       initialMemo: currentLog.memo,
       initialColorLabelName: currentLog.colorLabelName,
-      commentSuggestions: _commentSuggestions, // 空のリストが渡される (サジェストなし)
+      commentSuggestions: _commentSuggestions,
       katakanaToHiraganaConverter: katakanaToHiragana,
-      availableColorLabels: colorLabels,
+      availableColorLabels: colorLabels, // `colorLabels` は `color_constants.dart` から
     );
 
     if (!mounted) return;
@@ -96,7 +85,6 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
       final String newMemo = result['memo'] ?? currentLog.memo;
       final String newColorLabel = result['colorLabel'] ?? currentLog.colorLabelName;
 
-      // データに変更があった場合のみ更新処理を実行
       if (newMemo != currentLog.memo || newColorLabel != currentLog.colorLabelName) {
         setState(() {
           _editableSession.logEntries[logIndex].memo = newMemo;
@@ -108,40 +96,47 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
     FocusScope.of(context).unfocus();
   }
 
-  // ストレージ内のセッション情報を更新する非同期関数
   Future<void> _updateSessionInStorage() async {
-    // session_storage.dart の updateSession 関数を利用
     final bool success = await updateSession(
-      context: context, // SnackBar表示のため
+      context: context,
       updatedSession: _editableSession,
       savedSessionsKey: _savedSessionsKey,
     );
 
+    // SnackBar は updateSession 関数内でテーマに基づいて表示されることを期待
     if (!mounted) return;
-    if (success) {
-      // SnackBarは updateSession 関数内で表示される
-    } else {
-      // SnackBarは updateSession 関数内で表示される
-    }
+    // if (success) {
+    //   // 必要であれば、ここでも成功のSnackBarを表示
+    // } else {
+    //   // 必要であれば、ここでも失敗のSnackBarを表示
+    // }
   }
 
-  // 現在のセッションを削除する処理
   Future<void> _deleteCurrentSession() async {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme; // ダイアログ外でテーマを取得
+
     final bool? confirmDelete = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) {
+        // ダイアログ内でテーマを取得
+        final ThemeData theme = Theme.of(dialogContext);
+        final ColorScheme dialogColorScheme = theme.colorScheme;
+        // final TextTheme dialogTextTheme = theme.textTheme;
+
         return AlertDialog(
+          // titleTextStyle, contentTextStyle は app_theme.dart の dialogTheme から適用される想定
           title: const Text('セッション削除の確認'),
           content: const Text('このセッションを本当に削除しますか？この操作は元に戻せません。'),
           actions: <Widget>[
             TextButton(
+              // TextButton のスタイルは app_theme.dart の textButtonTheme から適用される想定
               child: const Text('キャンセル'),
               onPressed: () {
                 Navigator.of(dialogContext).pop(false);
               },
             ),
             TextButton(
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              style: TextButton.styleFrom(foregroundColor: dialogColorScheme.error), // テーマのエラーカラーを使用
               child: const Text('削除'),
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
@@ -169,28 +164,30 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                   SavedLogSession.fromJson(jsonItem as Map<String, dynamic>))
               .toList();
         } catch (e) {
-          // JSONデコードエラー
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('セッションデータの読み込みに失敗しました。')),
+              SnackBar(
+                content: Text('セッションデータの読み込みに失敗しました。', style: TextStyle(color: colorScheme.onError)),
+                backgroundColor: colorScheme.error,
+              ),
             );
           }
-          return; // 削除処理を中断
+          return;
         }
       }
 
-      // IDで該当セッションを検索し、リストから削除
       allSessions.removeWhere((session) => session.id == _editableSession.id);
 
-      // 更新されたセッションリストをJSON文字列にエンコードして保存
       final String updatedSessionsJson = jsonEncode(allSessions.map((s) => s.toJson()).toList());
       await prefs.setString(_savedSessionsKey, updatedSessionsJson);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('セッションを削除しました。')),
+          SnackBar(
+            content: Text('セッションを削除しました。', style: TextStyle(color: colorScheme.onSurface)), // 通常の通知
+            backgroundColor: colorScheme.surface,
+          ),
         );
-        // 前の画面に戻り、削除が成功したことを伝える (true を渡す)
         Navigator.of(context).pop(true);
       }
     }
@@ -199,14 +196,21 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+    final TextTheme textTheme = theme.textTheme;
+    final IconThemeData iconTheme = theme.iconTheme;
+
     final String formattedDate =
         DateFormat('yyyy/MM/dd HH:mm').format(_editableSession.saveDate);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_editableSession.title, style: const TextStyle(fontSize: 18)),
+        // AppBarのスタイルは app_theme.dart の appBarTheme から適用される想定
+        title: Text(_editableSession.title, style: textTheme.titleLarge?.copyWith(fontSize: 18)), // テーマのスタイルを基本に調整
         actions: [
           IconButton(
+            // アイコンの色は appBarTheme.actionsIconTheme または iconTheme から取得される
             icon: const Icon(Icons.edit),
             tooltip: 'セッション情報を編集',
             onPressed: _showEditSessionDialog,
@@ -223,11 +227,13 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.calendar_month_outlined,
-                        size: 16, color: Colors.grey[700]),
+                    Icon(
+                      Icons.calendar_month_outlined,
+                      size: 16,
+                      color: iconTheme.color?.withOpacity(0.7), // テーマのアイコン色を少し薄く
+                    ),
                     const SizedBox(width: 6),
-                    Text(formattedDate,
-                        style: Theme.of(context).textTheme.titleSmall),
+                    Text(formattedDate, style: textTheme.titleSmall),
                   ],
                 ),
                 if (_editableSession.sessionComment != null &&
@@ -237,46 +243,44 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                     padding: const EdgeInsets.all(12.0),
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: Colors.grey[100],
+                      color: colorScheme.surface.withOpacity(0.5), // テーマの表面色を少し薄く、または cardTheme.color を使用
                       borderRadius: BorderRadius.circular(8.0),
-                      border: Border.all(color: Colors.grey[300]!)
+                      border: Border.all(color: colorScheme.onSurface.withOpacity(0.12)) // テーマの境界線色
                     ),
                     child: Text(
                       _editableSession.sessionComment!,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+                      style: textTheme.bodyMedium?.copyWith(height: 1.5),
                     ),
                   ),
                 ],
               ],
             ),
           ),
-          // ★ グラフ表示エリアを追加
-          if (_editableSession.logEntries.isNotEmpty) // ログがある場合のみグラフを表示
+          if (_editableSession.logEntries.isNotEmpty)
             SizedBox(
-              height: _chartHeight, // 固定の高さを指定
-              child: LogColorSummaryChart(
+              height: _chartHeight,
+              child: LogColorSummaryChart( // LogColorSummaryChart 内部の色指定は別途修正が必要
                 logs: _editableSession.logEntries,
               ),
             )
-          else // ログがない場合はグラフエリアにメッセージを表示 (任意)
+          else
             Container(
               height: _chartHeight,
               alignment: Alignment.center,
               margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               padding: const EdgeInsets.all(16.0),
               decoration: BoxDecoration(
-                color: Theme.of(context).cardColor.withOpacity(0.3),
+                color: theme.cardTheme.color?.withOpacity(0.3) ?? colorScheme.surface.withOpacity(0.1), // テーマのカード色または表面色を薄く
                 borderRadius: BorderRadius.circular(8.0),
-                border: Border.all(color: Colors.grey[300]!)
+                border: Border.all(color: colorScheme.onSurface.withOpacity(0.12)) // テーマの境界線色
               ),
               child: Text(
                 'グラフ表示対象のログデータがありません。',
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                style: textTheme.bodySmall?.copyWith(color: textTheme.bodySmall?.color?.withOpacity(0.7)),
                 textAlign: TextAlign.center,
               ),
             ),
-          const SizedBox(height: 8), // グラフとリストの間に少しスペースを追加
-          // --- ログ表示部分を LogCardList に変更 ---
+          const SizedBox(height: 8),
           Expanded(
             child: _editableSession.logEntries.isEmpty
                 ? Center(
@@ -284,27 +288,28 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                       padding: const EdgeInsets.all(16.0),
                       child: Text(
                         'このセッションにはログがありません。',
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: textTheme.bodySmall,
                       ),
                     ),
                   )
-                : LogCardList( // LogTable から LogCardList に変更
+                : LogCardList( // LogCardList 内部の色指定は別途修正が必要
                     logs: _editableSession.logEntries,
-                    onEditLog: _editLogEntry, // コールバックはそのまま渡す
+                    onEditLog: _editLogEntry,
                   ),
           ),
         ],
       ),
-      // 画面下部にフッターとして削除アイコンボタンを中央に配置
       bottomNavigationBar: BottomAppBar(
+        // BottomAppBar のスタイルは app_theme.dart の bottomAppBarTheme または bottomNavigationBarTheme から影響を受ける
+        // color: colorScheme.surface, // 明示的に指定も可能
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center, // IconButtonを中央寄せにする
+          mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             IconButton(
               icon: const Icon(Icons.delete_forever),
-              color: Colors.redAccent, // アイコンの色を赤系に
+              color: colorScheme.error, // テーマのエラーカラーを使用
               tooltip: 'このセッションを削除',
-              iconSize: 30.0, // アイコンサイズを少し大きくする (任意)
+              iconSize: 30.0,
               onPressed: _deleteCurrentSession,
             ),
           ],

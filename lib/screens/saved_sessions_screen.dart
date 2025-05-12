@@ -19,7 +19,6 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
   bool _isLoading = true;
   DateTime? _lastVisibleTime;
 
-  // 選択モード関連の状態変数
   bool _isSelectionMode = false;
   final Set<String> _selectedSessionIds = {};
 
@@ -28,10 +27,12 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
   @override
   void initState() {
     super.initState();
+    // 初期ロードは VisibilityDetector に任せるか、ここで一度呼ぶことも検討
+    // _loadSavedSessions();
   }
 
   Future<void> _loadSavedSessions({bool force = false}) async {
-    if (!mounted) return; 
+    if (!mounted) return;
 
     if (!force &&
         _lastVisibleTime != null &&
@@ -40,17 +41,16 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
       return;
     }
 
-    // ロード開始前に isLoading を true に設定し、選択モードであれば解除する
     setState(() {
       _isLoading = true;
-      if (force || _savedSessions.isEmpty) { // 強制更新時や初回ロード時
+      if (force || _savedSessions.isEmpty) {
         _isSelectionMode = false;
         _selectedSessionIds.clear();
       }
     });
-    
+
     final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return; 
+    if (!mounted) return;
 
     final String? sessionsJson = prefs.getString(_savedSessionsKey);
     List<SavedLogSession> loadedSessions = [];
@@ -65,11 +65,15 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
         loadedSessions.sort((a, b) => b.saveDate.compareTo(a.saveDate));
       } catch (e) {
         if (mounted) {
+          final colorScheme = Theme.of(context).colorScheme;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('保存済みセッションの読み込みに失敗しました。')),
+            SnackBar(
+              content: Text('保存済みセッションの読み込みに失敗しました。', style: TextStyle(color: colorScheme.onError)),
+              backgroundColor: colorScheme.error,
+            ),
           );
         }
-        loadedSessions = []; 
+        loadedSessions = [];
       }
     }
 
@@ -91,9 +95,9 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
         _selectedSessionIds.add(sessionId);
       }
       if (_selectedSessionIds.isEmpty) {
-        _isSelectionMode = false; 
+        _isSelectionMode = false;
       } else {
-        _isSelectionMode = true; 
+        _isSelectionMode = true;
       }
     });
   }
@@ -106,21 +110,24 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
     });
   }
 
-  // すべての選択を解除するメソッド
   void _clearSelection() {
     if (!mounted) return;
     setState(() {
       _selectedSessionIds.clear();
-      _isSelectionMode = false; 
+      _isSelectionMode = false;
     });
   }
 
   Future<void> _deleteSelectedSessions() async {
     if (_selectedSessionIds.isEmpty) return;
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     final bool? confirmDelete = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) {
+        final ThemeData theme = Theme.of(dialogContext);
+        final ColorScheme dialogColorScheme = theme.colorScheme;
+
         return AlertDialog(
           title: const Text('選択したセッションの削除'),
           content: Text('${_selectedSessionIds.length} 件のセッションを本当に削除しますか？この操作は元に戻せません。'),
@@ -132,7 +139,7 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
               },
             ),
             TextButton(
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              style: TextButton.styleFrom(foregroundColor: dialogColorScheme.error),
               child: const Text('削除'),
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
@@ -150,45 +157,53 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
       if (!mounted) return;
 
       _savedSessions.removeWhere((session) => _selectedSessionIds.contains(session.id));
-      
+
       final String updatedSessionsJson = jsonEncode(_savedSessions.map((s) => s.toJson()).toList());
       await prefs.setString(_savedSessionsKey, updatedSessionsJson);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${_selectedSessionIds.length} 件のセッションを削除しました。')),
+          SnackBar(
+            content: Text('${_selectedSessionIds.length} 件のセッションを削除しました。', style: TextStyle(color: colorScheme.onSurface)),
+            backgroundColor: colorScheme.surface,
+          ),
         );
-        _clearSelection(); 
-        setState(() {
-          _isLoading = false; 
+        _clearSelection();
+        // _loadSavedSessions(force: true); // 削除後すぐに再読み込みする場合
+         setState(() { // 画面から削除されたことを即時反映するためにisLoadingをfalseに
+          _isLoading = false;
         });
       }
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+    final TextTheme textTheme = theme.textTheme;
+    final IconThemeData iconTheme = theme.iconTheme;
+
     Widget? leadingWidget;
     List<Widget>? actionsWidgets;
     Widget? titleWidget;
 
     if (_isSelectionMode && _selectedSessionIds.isNotEmpty) {
-      // 選択モード中で、かつ選択アイテムがある場合
       leadingWidget = IconButton(
         icon: const Icon(Icons.deselect),
+        // iconTheme.color が適用される
         tooltip: '選択をすべて解除',
         onPressed: _clearSelection,
       );
-      titleWidget = Text('${_selectedSessionIds.length} 件選択中');
-      actionsWidgets = null; // 右側には何も表示しない (または他のアクションを追加可能)
+      titleWidget = Text('${_selectedSessionIds.length} 件選択中', style: textTheme.titleLarge); // AppBarのタイトルスタイル
+      actionsWidgets = null;
     } else {
-      // それ以外の場合 (非選択モード or 選択モードだが選択アイテムなし)
-      leadingWidget = null; // 左側には何も表示しない
-      titleWidget = null; // 通常のタイトル表示なし
+      leadingWidget = null;
+      titleWidget = const Text('保存したセッション'); // 通常時のタイトル
       actionsWidgets = [
         IconButton(
           icon: const Icon(Icons.refresh),
+          // iconTheme.color が適用される
           tooltip: 'リストを更新',
           onPressed: () => _loadSavedSessions(force: true),
         ),
@@ -200,27 +215,28 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
       onVisibilityChanged: (visibilityInfo) {
         final visiblePercentage = visibilityInfo.visibleFraction * 100;
         if (mounted && visiblePercentage > 50) {
-          if (!_isSelectionMode) { 
+          if (!_isSelectionMode) {
              _loadSavedSessions();
           }
         }
       },
       child: Scaffold(
         appBar: AppBar(
+          // AppBarのスタイルは app_theme.dart の appBarTheme から適用される想定
           leading: leadingWidget,
           title: titleWidget,
           actions: actionsWidgets,
-          automaticallyImplyLeading: false, // leadingを明示的に制御するため、自動的な戻るボタンなどを無効化
+          automaticallyImplyLeading: _isSelectionMode, // 選択モードの時だけ戻るボタンを非表示にするなど調整可能
         ),
         body: _isLoading
-            ? const Center(child: CircularProgressIndicator())
+            ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
             : _savedSessions.isEmpty
-                ? const Center(
+                ? Center(
                     child: Padding(
-                      padding: EdgeInsets.all(16.0),
+                      padding: const EdgeInsets.all(16.0),
                       child: Text(
                         '保存されたセッションはありません。',
-                        style: TextStyle(fontSize: 16),
+                        style: textTheme.titleMedium, // より適切なテキストスタイルに変更
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -232,23 +248,37 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
                       final isSelected = _selectedSessionIds.contains(session.id);
                       final String formattedDate = DateFormat('yyyy/MM/dd HH:mm').format(session.saveDate);
 
+                      final Color? cardBackgroundColor = isSelected
+                          ? colorScheme.primary.withOpacity(0.1) // テーマのプライマリカラーを薄く
+                          : theme.cardTheme.color; // テーマのカード背景色
+
                       Widget subtitleWidget = Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.calendar_month_outlined, size: 14, color: Colors.grey[600]),
+                          Icon(
+                            Icons.calendar_month_outlined,
+                            size: 14,
+                            color: textTheme.bodySmall?.color?.withOpacity(0.7), // サブタイトルのテキスト色を少し薄く
+                          ),
                           const SizedBox(width: 4),
-                          Text(formattedDate, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                          Text(
+                            formattedDate,
+                            style: textTheme.bodySmall?.copyWith(
+                              color: textTheme.bodySmall?.color?.withOpacity(0.7), // サブタイトルのテキスト色を少し薄く
+                            ),
+                          ),
                         ],
                       );
 
                       return Card(
+                        // Cardのスタイルは app_theme.dart の cardTheme から適用される想定
                         margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                        color: isSelected ? Theme.of(context).primaryColorLight.withOpacity(0.3) : null,
+                        color: cardBackgroundColor,
                         child: InkWell(
                           onLongPress: () {
-                            if (!_isSelectionMode) { 
+                            if (!_isSelectionMode) {
                               _startSelectionMode(session.id);
-                            } else { 
+                            } else {
                               _toggleSelection(session.id);
                             }
                           },
@@ -269,13 +299,13 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
                             }
                           },
                           child: ListTile(
-                            leading: _isSelectionMode 
+                            leading: _isSelectionMode
                                 ? Icon(
                                     isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
-                                    color: isSelected ? Theme.of(context).primaryColor : Colors.grey,
+                                    color: isSelected ? colorScheme.primary : iconTheme.color?.withOpacity(0.6),
                                   )
-                                : null, 
-                            title: Text(session.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                : null,
+                            title: Text(session.title, style: textTheme.titleMedium), // テーマのテキストスタイル
                             subtitle: subtitleWidget,
                           ),
                         ),
@@ -287,9 +317,10 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
                 onPressed: _deleteSelectedSessions,
                 label: const Text('選択項目を削除'),
                 icon: const Icon(Icons.delete_sweep),
-                backgroundColor: Colors.redAccent,
+                backgroundColor: colorScheme.error, // テーマのエラーカラーを使用
+                // foregroundColor は FABTheme から取得されるか、colorScheme.onError を使用
               )
-            : null, 
+            : null,
       ),
     );
   }
