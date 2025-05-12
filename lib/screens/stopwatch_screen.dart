@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:vibration/vibration.dart';
 
-// import '../theme/color_constants.dart'; // AppColors の直接参照は避けるためコメントアウトも検討
 import '../models/log_entry.dart';
 import '../theme/color_constants.dart'; // colorLabels のために必要
 
@@ -52,9 +51,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   static const double fabWidgetHeight = 120.0;
   static const double pageIndicatorHeight = 24.0;
 
-  // bool _showLapFlash = false; // 画面フラッシュ機能を削除
-  // Timer? _lapFlashTimer; // 画面フラッシュ機能を削除
-
   bool? _hasVibrator; // バイブレーション機能の有無を保持するフラグ
 
   // バイブレーションの時間を定義
@@ -89,7 +85,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     _timer?.cancel();
-    // _lapFlashTimer?.cancel(); // 画面フラッシュ機能を削除
     _stopwatch.stop();
     _sessionTitleController.dispose();
     _sessionCommentController.dispose();
@@ -169,13 +164,11 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     });
   }
 
-  void _handleStopStopwatch() async { // asyncキーワードを追加
+  void _handleStopStopwatch() async {
     if (!_isRunning || _currentActualSessionStartTime == null) return;
 
     // バイブレーションを実行 (停止時)
     if (_hasVibrator == true) {
-      // Vibration.vibrate() は Future を返すため、必要に応じて await する
-      // ここでは特に待つ必要はないが、連続して他のバイブレーションを呼び出す場合は考慮
       Vibration.vibrate(duration: _stopVibrationDuration);
     }
 
@@ -215,23 +208,9 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   void _handleLapRecord() async {
     if (!_isRunning || _currentActualSessionStartTime == null) return;
 
-    // _lapFlashTimer?.cancel(); // 画面フラッシュ機能を削除
-    // if (mounted) { // 画面フラッシュ機能を削除
-    //   setState(() { // 画面フラッシュ機能を削除
-    //     _showLapFlash = true; // 画面フラッシュ機能を削除
-    //   }); // 画面フラッシュ機能を削除
-    // } // 画面フラッシュ機能を削除
-    // _lapFlashTimer = Timer(const Duration(milliseconds: 650), () { // 画面フラッシュ機能を削除
-    //   if (mounted) { // 画面フラッシュ機能を削除
-    //     setState(() { // 画面フラッシュ機能を削除
-    //       _showLapFlash = false; // 画面フラッシュ機能を削除
-    //     }); // 画面フラッシュ機能を削除
-    //   } // 画面フラッシュ機能を削除
-    // }); // 画面フラッシュ機能を削除
 
     // バイブレーションを実行 (ラップ記録時)
     if (_hasVibrator == true) {
-      // Vibration.vibrate() は Future を返す
       Vibration.vibrate(duration: _lapVibrationDuration);
     }
 
@@ -279,7 +258,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       initialColorLabelName: currentLog.colorLabelName,
       commentSuggestions: _commentSuggestions,
       katakanaToHiraganaConverter: katakanaToHiragana,
-      availableColorLabels: colorLabels, // `colorLabels` は `color_constants.dart` から
+      availableColorLabels: colorLabels,
     );
     if (result != null && mounted) {
       final String newMemo = result['memo'] ?? currentLog.memo;
@@ -294,7 +273,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   }
 
   Future<void> _showSaveSessionDialog() async {
-    // テーマから色を取得 (buildメソッド外なので、ここで再度取得するか、クラスメンバーとして保持)
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     if (_logs.isEmpty) {
@@ -302,7 +280,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('保存するログがありません。', style: TextStyle(color: colorScheme.onError)),
-          backgroundColor: colorScheme.error, // SnackBarのパラメータとして指定
+          backgroundColor: colorScheme.error,
         ),
       );
       return;
@@ -312,7 +290,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('まずストップウォッチを停止してください。', style: TextStyle(color: colorScheme.onError)),
-          backgroundColor: colorScheme.error, // SnackBarのパラメータとして指定
+          backgroundColor: colorScheme.error,
         ),
       );
       return;
@@ -334,13 +312,12 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
         logs: _logs,
         savedSessionsKey: _savedSessionsKey,
       );
-      // SnackBar for success is handled within saveSession or can be added here if needed
-      // For example:
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('「${sessionData['title']}」としてセッションを保存しました。', style: TextStyle(color: colorScheme.onSurface)),
-            backgroundColor: colorScheme.surface, // SnackBarのパラメータとして指定
+            backgroundColor: colorScheme.surface,
           ),
         );
       }
@@ -360,9 +337,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
 
   @override
   Widget build(BuildContext context) {
-    // テーマから色を取得
     final ThemeData theme = Theme.of(context);
-    final ColorScheme colorScheme = theme.colorScheme;
     final TextTheme textTheme = theme.textTheme;
 
     final displayLogsForCarousel = _getDisplayLogs();
@@ -375,7 +350,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       child: SingleChildScrollView(
         child: Column(
           children: <Widget>[
-            TimerDisplay(elapsedTime: _elapsedTime), // TimerDisplay 内部の色指定は別途修正が必要
+            TimerDisplay(elapsedTime: _elapsedTime),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0),
               child: Row(
@@ -385,7 +360,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
                     message: '現在のログを保存',
                     child: IconButton(
                       icon: const Icon(Icons.save_alt_outlined, size: 28),
-                      // アイコンの色は theme.iconTheme.color から取得される
                       onPressed: (_logs.isNotEmpty && !_isRunning) ? _showSaveSessionDialog : null,
                     ),
                   ),
@@ -393,7 +367,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
                     message: 'ログを共有 (CSV)',
                     child: IconButton(
                       icon: const Icon(Icons.share_outlined, size: 28),
-                      // アイコンの色は theme.iconTheme.color から取得される
                       onPressed: _logs.isNotEmpty
                           ? () => shareLogsAsCsvText(context, _logs)
                           : null,
@@ -405,7 +378,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
             if (!isKeyboardVisible)
               SizedBox(
                 height: MediaQuery.of(context).size.height * graphHeightPercentage,
-                child: LogColorSummaryChart( // LogColorSummaryChart 内部の色指定は別途修正が必要
+                child: LogColorSummaryChart(
                   logs: _logs,
                 ),
               )
@@ -413,7 +386,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
               const SizedBox.shrink(),
             SizedBox(
               height: carouselHeight,
-              child: LogCardCarousel( // LogCardCarousel 内部の色指定は別途修正が必要
+              child: LogCardCarousel(
                 logs: displayLogsForCarousel,
                 onEditLog: _showEditLogDialog,
                 pageController: _pageController,
@@ -425,7 +398,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
                   padding: const EdgeInsets.only(top: 4.0, bottom: 8.0),
                   child: Text(
                     '${_currentPage + 1} / ${displayLogsForCarousel.length}',
-                    style: textTheme.bodySmall, // テーマのテキストスタイルを適用
+                    style: textTheme.bodySmall,
                   ),
                 )
               : const SizedBox(height: pageIndicatorHeight),
@@ -444,8 +417,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
         }
       },
       child: Scaffold(
-        // appBar: CustomAppBar(), // CustomAppBar を使う場合はそちらのテーマ対応も必要
-        body: mainContent, // Stackから直接mainContentを表示するように変更
+        body: mainContent,
         floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
         floatingActionButton: StopwatchFloatingActionButton(
           isRunning: _isRunning,
@@ -453,13 +425,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
           onStopStopwatch: _handleStopStopwatch,
           onLapRecord: _handleLapRecord,
           onSettings: _navigateToSettings,
-          // StopwatchFloatingActionButton に渡す色はテーマから取得
-          //primaryColor: colorScheme.primary,
-          //stopColor: colorScheme.error, // 停止ボタンはエラーカラーなど意味的な色を割り当て
-          //secondaryColor: colorScheme.secondary,
-          // disabledColor: theme.disabledColor, // ThemeData.disabledColor を使用
-          // または、より明示的にColorSchemeから
-          //disabledColor: colorScheme.onSurface.withOpacity(0.38), // Material Design の disabled 色の標準的な表現
         ),
       ),
     );

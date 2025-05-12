@@ -73,33 +73,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _editSuggestion(int index) async {
     _suggestionEditController.text = _suggestions[index];
-    // テーマから色を取得 (ダイアログ内で Theme.of(context) を使うため、ここで取得しなくても良いが、
-    // もしダイアログのボタンの色などをこのメソッド内で制御したい場合はここで取得)
-    // final ColorScheme colorScheme = Theme.of(context).colorScheme;
-    // final TextTheme textTheme = Theme.of(context).textTheme;
-
+ 
     final String? updatedSuggestion = await showDialog<String>(
       context: context,
       builder: (BuildContext dialogContext) {
-        // ダイアログ内でテーマを取得
-        final ThemeData theme = Theme.of(dialogContext);
-        final ColorScheme colorSchemeDialog = theme.colorScheme;
-        final TextTheme textThemeDialog = theme.textTheme;
 
         return AlertDialog(
-          // titleTextStyle, contentTextStyle は app_theme.dart の dialogTheme から適用される想定
           title: const Text('サジェスチョンを編集'),
           content: TextField(
             controller: _suggestionEditController,
             autofocus: true,
-            // decoration は app_theme.dart の inputDecorationTheme から適用される想定
             decoration: const InputDecoration(hintText: "新しいサジェスチョン"),
-            // style は app_theme.dart の textTheme から適用される想定
           ),
           actions: <Widget>[
             TextButton(
-              // TextButton のスタイルは app_theme.dart の textButtonTheme から適用される想定
-              // child: Text('破棄', style: TextStyle(color: colorSchemeDialog.secondary)), // 個別に色を変えたい場合
               child: const Text('破棄'),
               onPressed: () {
                 Navigator.of(dialogContext).pop();
@@ -147,7 +134,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final IconThemeData iconTheme = theme.iconTheme;
 
     return Scaffold(
-      // AppBarのスタイルは app_theme.dart の appBarTheme から適用される想定
       appBar: AppBar(
         title: const Text('サジェスト設定'), // titleTextStyle は appBarTheme から
       ),
@@ -155,8 +141,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: _isLoading
             ? Center(
                 child: CircularProgressIndicator(
-                  // CircularProgressIndicator の色は colorScheme.primary になるのが一般的
-                  // color: colorScheme.primary, // 明示的に指定も可能
                 ),
               )
             : Padding(
@@ -168,18 +152,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Expanded(
                           child: TextField(
                             controller: _suggestionAddController,
-                            // decoration は app_theme.dart の inputDecorationTheme から適用される想定
                             decoration: const InputDecoration(
                               labelText: '新しいサジェスチョン',
                               hintText: '例: 会議',
                             ),
                             onSubmitted: (_) => _addSuggestion(),
-                            // style は app_theme.dart の textTheme から適用される想定
                           ),
                         ),
                         const SizedBox(width: 8),
                         ElevatedButton(
-                          // ElevatedButton のスタイルは app_theme.dart の elevatedButtonTheme から適用される想定
                           onPressed: _addSuggestion,
                           child: const Text('追加'),
                         ),
@@ -194,19 +175,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               itemBuilder: (context, index) {
                                 final suggestion = _suggestions[index];
                                 return Card(
-                                  // Card のスタイルは app_theme.dart の cardTheme から適用される想定
                                   margin: const EdgeInsets.symmetric(vertical: 4.0),
                                   child: ListTile(
-                                    // title のスタイルは textTheme.titleMedium や subtitle1 などが適用される想定
                                     title: Text(suggestion),
                                     trailing: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         IconButton(
                                           icon: const Icon(Icons.edit_outlined),
-                                          // アイコンの色は iconTheme.color または colorScheme.primary を使用
                                           color: iconTheme.color, // デフォルトのアイコン色
-                                          // color: colorScheme.primary, // プライマリアクションとして強調する場合
                                           tooltip: '編集',
                                           onPressed: () => _editSuggestion(index),
                                         ),
