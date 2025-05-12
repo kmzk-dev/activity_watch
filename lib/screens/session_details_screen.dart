@@ -29,7 +29,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
 
   static const String _savedSessionsKey = 'saved_log_sessions';
   static const String _suggestionsKey = 'comment_suggestions'; // サジェスト用のキー
-  static const double _chartHeight = 200.0;
+  static const double _chartHeight = 200.0; // グラフの固定高さ
 
   @override
   void initState() {
@@ -49,7 +49,8 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
   }
 
   Future<void> _showEditSessionDialog() async {
-    final Map<String, String>? updatedData = await showSessionDetailsInputDialog(
+    final Map<String, String>? updatedData =
+        await showSessionDetailsInputDialog(
       context: context,
       dialogTitle: 'セッション情報を編集',
       initialTitle: _editableSession.title,
@@ -101,9 +102,11 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
 
     if (result != null) {
       final String newMemo = result['memo'] ?? currentLog.memo;
-      final String newColorLabel = result['colorLabel'] ?? currentLog.colorLabelName;
+      final String newColorLabel =
+          result['colorLabel'] ?? currentLog.colorLabelName;
 
-      if (newMemo != currentLog.memo || newColorLabel != currentLog.colorLabelName) {
+      if (newMemo != currentLog.memo ||
+          newColorLabel != currentLog.colorLabelName) {
         setState(() {
           _editableSession.logEntries[logIndex].memo = newMemo;
           _editableSession.logEntries[logIndex].colorLabelName = newColorLabel;
@@ -115,6 +118,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
   }
 
   Future<void> _updateSessionInStorage() async {
+    // ignore: unused_local_variable
     final bool success = await updateSession(
       context: context,
       updatedSession: _editableSession,
@@ -131,7 +135,8 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
   }
 
   Future<void> _deleteCurrentSession() async {
-    final ColorScheme colorScheme = Theme.of(context).colorScheme; // ダイアログ外でテーマを取得
+    final ColorScheme colorScheme =
+        Theme.of(context).colorScheme; // ダイアログ外でテーマを取得
 
     final bool? confirmDelete = await showDialog<bool>(
       context: context,
@@ -144,7 +149,8 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
         return AlertDialog(
           // titleTextStyle, contentTextStyle は app_theme.dart の dialogTheme から適用される想定
           title: const Text('セッション削除の確認'),
-          content: const Text('このセッションを本当に削除しますか？この操作は元に戻せません。'),
+          content:
+              const Text('このセッションを本当に削除しますか？この操作は元に戻せません。'),
           actions: <Widget>[
             TextButton(
               // TextButton のスタイルは app_theme.dart の textButtonTheme から適用される想定
@@ -154,7 +160,8 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
               },
             ),
             TextButton(
-              style: TextButton.styleFrom(foregroundColor: dialogColorScheme.error), // テーマのエラーカラーを使用
+              style: TextButton.styleFrom(
+                  foregroundColor: dialogColorScheme.error), // テーマのエラーカラーを使用
               child: const Text('削除'),
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
@@ -176,7 +183,8 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
 
       if (sessionsJson != null && sessionsJson.isNotEmpty) {
         try {
-          final List<dynamic> decodedList = jsonDecode(sessionsJson) as List<dynamic>;
+          final List<dynamic> decodedList =
+              jsonDecode(sessionsJson) as List<dynamic>;
           allSessions = decodedList
               .map((jsonItem) =>
                   SavedLogSession.fromJson(jsonItem as Map<String, dynamic>))
@@ -185,7 +193,8 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('セッションデータの読み込みに失敗しました。', style: TextStyle(color: colorScheme.onError)),
+                content: Text('セッションデータの読み込みに失敗しました。',
+                    style: TextStyle(color: colorScheme.onError)),
                 backgroundColor: colorScheme.error,
               ),
             );
@@ -196,21 +205,23 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
 
       allSessions.removeWhere((session) => session.id == _editableSession.id);
 
-      final String updatedSessionsJson = jsonEncode(allSessions.map((s) => s.toJson()).toList());
+      final String updatedSessionsJson =
+          jsonEncode(allSessions.map((s) => s.toJson()).toList());
       await prefs.setString(_savedSessionsKey, updatedSessionsJson);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('セッションを削除しました。', style: TextStyle(color: colorScheme.onSurface)), // 通常の通知
+            content: Text('セッションを削除しました。',
+                style: TextStyle(
+                    color: colorScheme.onSurface)), // 通常の通知
             backgroundColor: colorScheme.surface,
           ),
         );
-        Navigator.of(context).pop(true);
+        Navigator.of(context).pop(true); // 削除成功を前の画面に伝える
       }
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -234,88 +245,83 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView( // スクロール可能にするために SingleChildScrollView を追加
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // セッションタイトルをBodyの最初に追加
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0), // 上部に適切なパディングを追加
-              child: Text(
-                _editableSession.title,
-                style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold), // より目立つスタイルに変更
-              ),
+      body: Column( // 画面全体をColumnでラップ
+        children: [
+          // 1. グラフ (LogColorSummaryChart) - 常時表示
+          SizedBox(
+            height: _chartHeight,
+            child: LogColorSummaryChart(
+              logs: _editableSession.logEntries,
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 16.0), // タイトル下、日付上のパディング調整
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.calendar_month_outlined,
-                        size: 16,
-                        color: iconTheme.color?.withOpacity(0.7),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(formattedDate, style: textTheme.titleSmall),
-                    ],
-                  ),
-                  if (_editableSession.sessionComment != null &&
-                      _editableSession.sessionComment!.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(12.0),
-                      width: double.infinity,
-                      //decoration: BoxDecoration(
-                      //  color: colorScheme.surface.withOpacity(0.5),
-                      //  borderRadius: BorderRadius.circular(8.0),
-                      //  border: Border.all(color: colorScheme.onSurface.withOpacity(0.12))
-                      //),
-                      child: Text(
-                        _editableSession.sessionComment!,
-                        style: textTheme.bodyMedium?.copyWith(height: 1.5),
+          ),
+          // 残りの要素をスクロール可能にする
+          Expanded(
+            child: SingleChildScrollView(
+              child: Padding( // スクロールビュー内のコンテンツにパディングを追加
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 2. 日付
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16.0), // グラフとの間に少しスペース
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.calendar_month_outlined,
+                            size: 16,
+                            color: iconTheme.color?.withOpacity(0.7),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(formattedDate, style: textTheme.titleSmall),
+                        ],
                       ),
                     ),
+                    const SizedBox(height: 8.0), // 日付とタイトルの間のスペース
+
+                    // 3. タイトル
+                    Text(
+                      _editableSession.title,
+                      style: textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12.0), // タイトルとコメントの間のスペース
+
+                    // 4. コメント
+                    if (_editableSession.sessionComment != null &&
+                        _editableSession.sessionComment!.isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12.0),
+                        width: double.infinity,
+                        decoration: BoxDecoration( // コメント欄の装飾（任意）
+                          color: colorScheme.surfaceVariant.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(8.0),
+                          // border: Border.all(color: colorScheme.outline.withOpacity(0.5))
+                        ),
+                        child: Text(
+                          _editableSession.sessionComment!,
+                          style: textTheme.bodyMedium?.copyWith(height: 1.5),
+                        ),
+                      ),
+                      const SizedBox(height: 16.0), // コメントとリストの間のスペース
+                    ] else ...[
+                      // コメントがない場合でも、リストとの間にスペースを確保
+                      const SizedBox(height: 16.0),
+                    ],
+
+
+                    // 5. リスト (LogCardList)
+                    LogCardList(
+                      logs: _editableSession.logEntries,
+                      onEditLog: _editLogEntry,
+                    ),
+                    const SizedBox(height: 16.0), // リストの下に余白
                   ],
-                ],
-              ),
-            ),
-            if (_editableSession.logEntries.isNotEmpty)
-              SizedBox(
-                height: _chartHeight,
-                child: LogColorSummaryChart(
-                  logs: _editableSession.logEntries,
-                ),
-              )
-            else
-              Container(
-                height: _chartHeight,
-                alignment: Alignment.center,
-                margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                padding: const EdgeInsets.all(16.0),
-                decoration: BoxDecoration(
-                  color: theme.cardTheme.color?.withOpacity(0.3) ?? colorScheme.surface.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8.0),
-                  border: Border.all(color: colorScheme.onSurface.withOpacity(0.12))
-                ),
-                child: Text(
-                  'グラフ表示対象のログデータがありません。',
-                  style: textTheme.bodySmall?.copyWith(color: textTheme.bodySmall?.color?.withOpacity(0.7)),
-                  textAlign: TextAlign.center,
                 ),
               ),
-            const SizedBox(height: 8),
-            // LogCardListがExpanded内にあるとSingleChildScrollViewとの組み合わせで問題が起きる可能性があるため、
-            // ListViewの高さを固定するか、shrinkWrap: true と physics: NeverScrollableScrollPhysics() を指定するなどの対応が必要
-            // ここでは、LogCardListが可変の高さを持つことを想定し、Expandedを削除し、ListViewのスクロールに任せる
-            LogCardList(
-              logs: _editableSession.logEntries, // 表示するログエントリのリスト
-              onEditLog: _editLogEntry, // 編集ボタンが押されたときのコールバック
             ),
-          ],
-        ),
+          ),
+        ],
       ),
       bottomNavigationBar: BottomAppBar(
         child: Row(
