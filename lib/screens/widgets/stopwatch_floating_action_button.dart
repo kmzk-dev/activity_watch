@@ -99,7 +99,7 @@ class StopwatchFloatingActionButton extends StatelessWidget {
               backgroundColor: isRunning ? currentSecondaryColor : currentDisabledColor,
               elevation: 2,
               shape: const CircleBorder(),
-              child: Icon(Icons.playlist_add_check, color: Colors.white, size: smallIconSize),
+              child: Icon(Icons.timer_outlined, color: Colors.white, size: smallIconSize),
             ),
           ),
         ],

@@ -63,19 +63,21 @@ class _AppShellState extends State<AppShell> {
       // 下部のナビゲーションバー
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
-          // 計測タブのアイテム
+          // 計測タブのアイテム (アイコンを SizedBox.shrink() に変更)
           BottomNavigationBarItem(
-            icon: Icon(Icons.timer_outlined), // アイコン
+            icon: SizedBox.shrink(), // アイコンを非表示にするための空のSizedBox
             label: '計測', // ラベル
           ),
-          // 履歴タブのアイテム
+          // 履歴タブのアイテム (アイコンを SizedBox.shrink() に変更)
           BottomNavigationBarItem(
-            icon: Icon(Icons.history), // アイコン
+            icon: SizedBox.shrink(), // アイコンを非表示にするための空のSizedBox
             label: '履歴', // ラベル
           ),
         ],
         currentIndex: _selectedIndex, // 現在選択されているアイテムのインデックス
         onTap: _onItemTapped, // アイテムがタップされたときのコールバック
+        // showSelectedLabels: true, // 選択されたラベルはデフォルトで表示されます
+        // showUnselectedLabels: true, // 選択されていないラベルも表示する場合 (テーマで設定済みなら不要な場合も)
       ),
     );
   }

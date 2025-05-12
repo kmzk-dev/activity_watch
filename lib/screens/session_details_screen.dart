@@ -9,8 +9,8 @@ import '../models/saved_log_session.dart'; // SavedLogSessionモデルをイン�
 import '../utils/session_dialog_utils.dart'; // 共通セッション編集ダイアログ関数をインポート
 import '../utils/dialog_utils.dart'; // ログ編集ダイアログ関数をインポート
 import '../utils/session_storage.dart'; // 共通ストレージ関数をインポート (updateSession を利用)
-// import '../screens/widgets/log_table.dart'; // 古いLogTableウィジェットのインポートはコメントアウトまたは削除
 import '../screens/widgets/log_card_list.dart'; // 新しいLogCardListウィジェットをインポート
+import '../screens/widgets/log_color_summary_chart.dart'; // ★ グラフウィジェットをインポート
 import '../theme/color_constants.dart'; // カラーラベル定義をインポート
 import '../utils/string_utils.dart'; // 文字列ユーティリティ (カタカナ→ひらがな変換) をインポート
 
@@ -29,6 +29,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
   List<String> _commentSuggestions = []; // コメントサジェスチョン (空のリストとして初期化)
 
   static const String _savedSessionsKey = 'saved_log_sessions'; // SharedPreferencesのキー
+  static const double _chartHeight = 200.0; // ★ グラフの固定の高さを定義
 
   @override
   void initState() {
@@ -42,16 +43,6 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
   void dispose() {
     super.dispose();
   }
-
-  // コメントサジェスチョンを読み込む関数 (今回は使用しない)
-  // Future<void> _loadSuggestions() async {
-  //   final SharedPreferences prefs = await SharedPreferences.getInstance();
-  //   if (!mounted) return;
-  //   setState(() {
-  //     // StopwatchScreenWidget と同じキーを参照
-  //     _commentSuggestions = prefs.getStringList('comment_suggestions') ?? [];
-  //   });
-  // }
 
   // セッション全体の情報を編集するためのダイアログを表示する非同期関数
   Future<void> _showEditSessionDialog() async {
@@ -243,26 +234,60 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                     _editableSession.sessionComment!.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Container(
-                    padding: const EdgeInsets.all(12.0), 
+                    padding: const EdgeInsets.all(12.0),
                     width: double.infinity,
                     decoration: BoxDecoration(
                       color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(8.0), 
-                      border: Border.all(color: Colors.grey[300]!) 
+                      borderRadius: BorderRadius.circular(8.0),
+                      border: Border.all(color: Colors.grey[300]!)
                     ),
                     child: Text(
                       _editableSession.sessionComment!,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5), 
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
                     ),
                   ),
                 ],
               ],
             ),
           ),
+          // ★ グラフ表示エリアを追加
+          if (_editableSession.logEntries.isNotEmpty) // ログがある場合のみグラフを表示
+            SizedBox(
+              height: _chartHeight, // 固定の高さを指定
+              child: LogColorSummaryChart(
+                logs: _editableSession.logEntries,
+              ),
+            )
+          else // ログがない場合はグラフエリアにメッセージを表示 (任意)
+            Container(
+              height: _chartHeight,
+              alignment: Alignment.center,
+              margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              padding: const EdgeInsets.all(16.0),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(8.0),
+                border: Border.all(color: Colors.grey[300]!)
+              ),
+              child: Text(
+                'グラフ表示対象のログデータがありません。',
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          const SizedBox(height: 8), // グラフとリストの間に少しスペースを追加
           // --- ログ表示部分を LogCardList に変更 ---
           Expanded(
             child: _editableSession.logEntries.isEmpty
-                ? const Center(child: Text('このセッションにはログがありません。'))
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Text(
+                        'このセッションにはログがありません。',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  )
                 : LogCardList( // LogTable から LogCardList に変更
                     logs: _editableSession.logEntries,
                     onEditLog: _editLogEntry, // コールバックはそのまま渡す
