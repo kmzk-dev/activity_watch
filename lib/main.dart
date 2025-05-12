@@ -61,6 +61,8 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context); // 現在のテーマを取得
+
     return Scaffold(
       // IndexedStackを使用することで、タブを切り替えても各画面の状態が保持される
       // indexプロパティで現在表示するウィジェットを指定し、
@@ -72,21 +74,23 @@ class _AppShellState extends State<AppShell> {
       // 下部のナビゲーションバー
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
-          // 計測タブのアイテム (アイコンを SizedBox.shrink() に変更)
+          // 計測タブのアイテム
           BottomNavigationBarItem(
-            icon: SizedBox.shrink(), // アイコンを非表示にするための空のSizedBox
+            icon: Icon(Icons.timer_outlined), // 計測アイコン
             label: '計測', // ラベル
           ),
-          // 履歴タブのアイテム (アイコンを SizedBox.shrink() に変更)
+          // 履歴タブのアイテム
           BottomNavigationBarItem(
-            icon: SizedBox.shrink(), // アイコンを非表示にするための空のSizedBox
+            icon: Icon(Icons.history), // 履歴アイコン
             label: '履歴', // ラベル
           ),
         ],
         currentIndex: _selectedIndex, // 現在選択されているアイテムのインデックス
         onTap: _onItemTapped, // アイテムがタップされたときのコールバック
+        selectedItemColor: theme.colorScheme.primary, // 選択されたアイテムの色をテーマのプライマリカラーに設定
+        unselectedItemColor: theme.colorScheme.onSurface.withOpacity(0.6), // 非選択アイテムの色を少し薄く設定
+        showUnselectedLabels: true, // 非選択のラベルも表示する
         // showSelectedLabels: true, // 選択されたラベルはデフォルトで表示されます
-        // showUnselectedLabels: true, // 選択されていないラベルも表示する場合 (テーマで設定済みなら不要な場合も)
       ),
     );
   }

@@ -36,17 +36,23 @@ class LogCardList extends StatelessWidget {
               ))
           // ログがある場合はListViewで各カードを表示
           : ListView.builder(
+              shrinkWrap: true, // 親ウィジェットのサイズに合わせて縮小
+              physics: const NeverScrollableScrollPhysics(), // 親のスクロールに委譲
               padding: const EdgeInsets.symmetric(vertical: 4.0), // リスト上下のパディング
               itemCount: logs.length, // ログの数
               itemBuilder: (context, index) {
                 // リストは新しいものから順に表示するため、インデックスを逆順にする
-                final logIndex = logs.length - 1 - index;
-                final log = logs[logIndex];
+                // session_details_screenでは、渡されるlogsリストが既に表示順になっている想定のため、
+                // ここでの逆順処理は不要かもしれないが、呼び出し元の実装に依存する。
+                // 今回は、渡された順に表示するものとして、indexをそのまま使用する。
+                // もし逆順表示が必要な場合は、呼び出し元でリストを逆順にするか、
+                // final logIndex = logs.length - 1 - index; のように調整する。
+                final log = logs[index]; // 渡されたリストの順で表示
 
                 // LogCardItemウィジェットを生成して返す
                 return LogCardItem(
                   log: log,
-                  logIndex: logIndex,
+                  logIndex: index, // 編集時にはこのindexが渡される
                   onEdit: onEditLog,
                 );
               },

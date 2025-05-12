@@ -52,16 +52,21 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   static const double fabWidgetHeight = 120.0;
   static const double pageIndicatorHeight = 24.0;
 
-  bool _showLapFlash = false;
-  Timer? _lapFlashTimer;
+  // bool _showLapFlash = false; // 画面フラッシュ機能を削除
+  // Timer? _lapFlashTimer; // 画面フラッシュ機能を削除
 
-  bool? _hasVibrator;
+  bool? _hasVibrator; // バイブレーション機能の有無を保持するフラグ
+
+  // バイブレーションの時間を定義
+  static const int _lapVibrationDuration = 100; // ラップ記録時のバイブレーション時間(ms)
+  static const int _stopVibrationDuration = 300; // 停止時のバイブレーション時間(ms)
+
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _checkVibrationSupport();
+    _checkVibrationSupport(); // バイブレーションサポート状況を確認
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         loadSuggestionsFromPrefs(force: true);
@@ -69,6 +74,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     });
   }
 
+  // デバイスがバイブレーションをサポートしているか確認
   Future<void> _checkVibrationSupport() async {
     bool? hasVibrator = await Vibration.hasVibrator();
     if (mounted) {
@@ -83,7 +89,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     _timer?.cancel();
-    _lapFlashTimer?.cancel();
+    // _lapFlashTimer?.cancel(); // 画面フラッシュ機能を削除
     _stopwatch.stop();
     _sessionTitleController.dispose();
     _sessionCommentController.dispose();
@@ -163,8 +169,16 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     });
   }
 
-  void _handleStopStopwatch() {
+  void _handleStopStopwatch() async { // asyncキーワードを追加
     if (!_isRunning || _currentActualSessionStartTime == null) return;
+
+    // バイブレーションを実行 (停止時)
+    if (_hasVibrator == true) {
+      // Vibration.vibrate() は Future を返すため、必要に応じて await する
+      // ここでは特に待つ必要はないが、連続して他のバイブレーションを呼び出す場合は考慮
+      Vibration.vibrate(duration: _stopVibrationDuration);
+    }
+
     final Duration currentElapsedDuration = DateTime.now().difference(_currentActualSessionStartTime!);
     final String currentTimeForLog = formatLogTime(currentElapsedDuration);
     final String startTime = _logs.isEmpty ? '00:00:00' : _logs.last.endTime;
@@ -201,22 +215,24 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   void _handleLapRecord() async {
     if (!_isRunning || _currentActualSessionStartTime == null) return;
 
-    _lapFlashTimer?.cancel();
-    if (mounted) {
-      setState(() {
-        _showLapFlash = true;
-      });
-    }
-    _lapFlashTimer = Timer(const Duration(milliseconds: 650), () {
-      if (mounted) {
-        setState(() {
-          _showLapFlash = false;
-        });
-      }
-    });
+    // _lapFlashTimer?.cancel(); // 画面フラッシュ機能を削除
+    // if (mounted) { // 画面フラッシュ機能を削除
+    //   setState(() { // 画面フラッシュ機能を削除
+    //     _showLapFlash = true; // 画面フラッシュ機能を削除
+    //   }); // 画面フラッシュ機能を削除
+    // } // 画面フラッシュ機能を削除
+    // _lapFlashTimer = Timer(const Duration(milliseconds: 650), () { // 画面フラッシュ機能を削除
+    //   if (mounted) { // 画面フラッシュ機能を削除
+    //     setState(() { // 画面フラッシュ機能を削除
+    //       _showLapFlash = false; // 画面フラッシュ機能を削除
+    //     }); // 画面フラッシュ機能を削除
+    //   } // 画面フラッシュ機能を削除
+    // }); // 画面フラッシュ機能を削除
 
+    // バイブレーションを実行 (ラップ記録時)
     if (_hasVibrator == true) {
-      Vibration.vibrate(duration: 100);
+      // Vibration.vibrate() は Future を返す
+      Vibration.vibrate(duration: _lapVibrationDuration);
     }
 
     final Duration currentElapsedDuration = DateTime.now().difference(_currentActualSessionStartTime!);
@@ -429,17 +445,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       },
       child: Scaffold(
         // appBar: CustomAppBar(), // CustomAppBar を使う場合はそちらのテーマ対応も必要
-        body: Stack(
-          children: [
-            mainContent,
-            if (_showLapFlash)
-              Positioned.fill(
-                child: Container(
-                  color: colorScheme.surface.withOpacity(0.3), // テーマの色を使用
-                ),
-              ),
-          ],
-        ),
+        body: mainContent, // Stackから直接mainContentを表示するように変更
         floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
         floatingActionButton: StopwatchFloatingActionButton(
           isRunning: _isRunning,
