@@ -28,22 +28,26 @@ Widget _buildSharedLogInputFields({
           // print('Available commentSuggestions: $commentSuggestions');
 
           if (query.isEmpty) {
-            // print('Query is empty, returning empty suggestions.');
+            // 入力が空白の場合、全てのサジェスト候補を表示する
+            return commentSuggestions;
+          } else if (query.length <= 2) {
+            // 入力が1文字または2文字の場合、フィルタリングして表示
+            final String normalizedQuery = katakanaToHiraganaConverter(query.toLowerCase());
+            // print('Normalized query for 1 or 2 chars: "$normalizedQuery"');
+
+            final Iterable<String> filteredSuggestions = commentSuggestions.where((String option) {
+              final String normalizedOption = katakanaToHiraganaConverter(option.toLowerCase());
+              final bool isMatch = normalizedOption.startsWith(normalizedQuery); // 前方一致でフィルタリング
+              // print('Comparing: NormalizedOption "$normalizedOption" with NormalizedQuery "$normalizedQuery" -> Match: $isMatch');
+              return isMatch;
+            });
+            // print('Filtered suggestions: ${filteredSuggestions.toList()}');
+            return filteredSuggestions;
+          } else {
+            // 入力が3文字以上の場合、サジェストを表示しない
+            // print('Query is 3 or more characters, returning empty suggestions.');
             return const Iterable<String>.empty();
           }
-          
-          final String normalizedQuery = katakanaToHiraganaConverter(query.toLowerCase());
-          // print('Normalized query: "$normalizedQuery"');
-
-          final Iterable<String> filteredSuggestions = commentSuggestions.where((String option) {
-            final String normalizedOption = katakanaToHiraganaConverter(option.toLowerCase());
-            final bool isMatch = normalizedOption.contains(normalizedQuery);
-            // print('Comparing: NormalizedOption "$normalizedOption" with NormalizedQuery "$normalizedQuery" -> Match: $isMatch');
-            return isMatch;
-          });
-
-          // print('Filtered suggestions: ${filteredSuggestions.toList()}');
-          return filteredSuggestions;
         },
         onSelected: (String selection) {
           memoController.text = selection;
@@ -85,8 +89,9 @@ Widget _buildSharedLogInputFields({
         },
         optionsViewBuilder: (BuildContext context, AutocompleteOnSelected<String> onSelected, Iterable<String> options) {
           // サジェスト候補がない、かつテキストフィールドにフォーカスがある場合は何も表示しない
-          if (options.isEmpty && FocusScope.of(context).hasFocus) { 
-             return const SizedBox.shrink(); 
+          // ただし、入力が空で全てのサジェストを表示する場合はこの条件に合致させない
+          if (options.isEmpty && FocusScope.of(context).hasFocus && memoController.text.isNotEmpty) {
+             return const SizedBox.shrink();
           }
           return Align(
             alignment: Alignment.topLeft,
@@ -127,7 +132,7 @@ Widget _buildSharedLogInputFields({
         children: availableColorLabels.keys.map((String labelName) {
           final bool isSelected = labelName == selectedColorLabel;
           // availableColorLabels から Color オブジェクトを取得。存在しない場合はデフォルト色（例: Colors.grey）
-          final Color labelActualColor = availableColorLabels[labelName] ?? Colors.grey; 
+          final Color labelActualColor = availableColorLabels[labelName] ?? Colors.grey;
 
           // ラベルの色に基づいて選択時の文字色を決定 (暗い背景なら白文字、明るい背景なら黒文字)
           final Brightness colorBrightness = ThemeData.estimateBrightnessForColor(labelActualColor);
@@ -178,8 +183,8 @@ Future<Map<String, dynamic>?> _showCoreLogInputDialog({
   required String Function(String) katakanaToHiraganaConverter,
   required Map<String, Color> availableColorLabels,
   required List<Widget> Function(
-    BuildContext dialogContext, 
-    TextEditingController memoController, 
+    BuildContext dialogContext,
+    TextEditingController memoController,
     String selectedColorLabel
   ) actionsBuilder,
   bool autofocusMemoField = true, // メモフィールドに自動フォーカスするかのフラグ
@@ -242,7 +247,7 @@ Future<Map<String, dynamic>?> _showCoreLogInputDialog({
         },
       );
     },
-  ); 
+  );
   // .whenComplete(() {
   //   memoFocusNode.dispose(); // ダイアログが閉じられたらFocusNodeを破棄
   // });
