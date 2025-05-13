@@ -4,8 +4,12 @@ import 'screens/saved_sessions_screen.dart'; // 保存済みセッション画�
 import 'screens/stopwatch_screen.dart'; // ストップウォッチ画面をインポート
 import 'util.dart';
 import 'theme.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart'; // インポート済み
+
 // アプリケーションのエントリーポイント
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  FlutterForegroundTask.initCommunicationPort();
   runApp(const ActivityWatchApp());
 }
 
@@ -16,19 +20,14 @@ class ActivityWatchApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final brightness = View.of(context).platformDispatcher.platformBrightness;
-
-    // Retrieves the default theme for the platform
-    //TextTheme textTheme = Theme.of(context).textTheme;
-
-    // Use with Google Fonts package to use downloadable fonts
     TextTheme textTheme = createTextTheme(context, "Noto Sans JP", "Noto Sans JP");
 
     MaterialTheme theme = MaterialTheme(textTheme);
     return MaterialApp(
-      title: 'Activity Watch', // アプリのタイトル
+      title: 'Activity Watch',
       theme: brightness == Brightness.light ? theme.light() : theme.dark(),
-      home: const AppShell(), // メインの画面構造
-      debugShowCheckedModeBanner: false, // デバッグバナーを非表示
+      home: const AppShell(),
+      debugShowCheckedModeBanner: false,
     );
   }
 }
@@ -43,7 +42,7 @@ class AppShell extends StatefulWidget {
 
 // AppShellのStateクラス
 class _AppShellState extends State<AppShell> {
-  int _selectedIndex = 0; // 現在選択されているタブのインデックス
+  int _selectedIndex = 0;
 
   // 各タブに対応するウィジェットのリスト
   // このリスト内のウィジェットはIndexedStackによって状態が保持される
@@ -52,6 +51,76 @@ class _AppShellState extends State<AppShell> {
     SavedSessionsScreen(), // 履歴タブの画面
   ];
 
+  // タスクデータを受信したときのコールバック関数
+  // FlutterForegroundTaskからデータを受信するためのコールバック関数
+  void _onReceiveTaskData(Object data) {
+    print('Received data in UI: $data');
+    if (data is Map<String, dynamic>) {
+      final dynamic timestampMillis = data["timestampMillis"];
+      if (timestampMillis != null) {
+        final DateTime timestamp = DateTime.fromMillisecondsSinceEpoch(timestampMillis, isUtc: true);
+        print('Received timestamp (JST): ${timestamp.toLocal()}');
+        //TODO: 受信データでUIを更新する処理
+      }
+    }
+  }
+
+
+  // 必要な権限を要求する関数
+  Future<void> _requestPermissions() async {
+    // 通知権限 (Android 13+ / iOS)
+    final NotificationPermission notificationPermission =
+        await FlutterForegroundTask.checkNotificationPermission();
+    if (notificationPermission != NotificationPermission.granted) {
+      await FlutterForegroundTask.requestNotificationPermission();
+    }
+  }
+  // Foreground Task サービスを初期化する関数
+  void _initService() {
+    FlutterForegroundTask.init(
+      androidNotificationOptions: AndroidNotificationOptions(
+        channelId: 'foreground_service', // 通知チャンネルID (マニフェストと合わせる必要はない)
+        channelName: 'Foreground Service Notification', // 通知チャンネル名
+        channelDescription:
+            'ストップウォッチがバックグラウンドで実行中です。', // 通知の説明
+        channelImportance: NotificationChannelImportance.LOW, // 重要度を低に設定 (通知音などを抑制)
+        onlyAlertOnce: false, // 初回のみ通知音などを鳴らす (重要度LOWなら影響少ないかも)
+      ),
+      iosNotificationOptions: const IOSNotificationOptions(
+        showNotification: true, // iOSでも通知を表示
+        playSound: false, // 音は鳴らさない
+      ),
+      foregroundTaskOptions: ForegroundTaskOptions(        
+        eventAction: ForegroundTaskEventAction.repeat(1000),// ストップウォッチの更新頻度に合わせて調整 (例: 1秒ごと)
+        autoRunOnBoot: false, // 端末起動時の自動実行はしない
+        autoRunOnMyPackageReplaced: false, // アプリ更新時の自動実行はしない
+        allowWakeLock: true, // スリープ状態でも実行を維持しようとする
+        allowWifiLock: false, // Wifiロックは通常不要
+      ),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // データ受信コールバックを登録
+    FlutterForegroundTask.addTaskDataCallback(_onReceiveTaskData);
+    // UIフレームの描画完了後に権限要求とサービス初期化を実行
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Request permissions and initialize the service.
+      _requestPermissions();
+      _initService();
+    });
+  }
+  
+  @override
+  void dispose() {
+    // コールバックを解除
+    FlutterForegroundTask.removeTaskDataCallback(_onReceiveTaskData);
+    super.dispose();
+  }
+  
+  
   // BottomNavigationBarのアイテムがタップされたときの処理
   void _onItemTapped(int index) {
     setState(() {
