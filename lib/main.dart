@@ -5,6 +5,7 @@ import 'screens/stopwatch_screen.dart'; // ストップウォッチ画面をイ�
 import 'util.dart';
 import 'theme.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart'; // インポート済み
+import 'services/foreground_task_handler.dart';
 
 // アプリケーションのエントリーポイント
 void main() {
@@ -43,6 +44,7 @@ class AppShell extends StatefulWidget {
 // AppShellのStateクラス
 class _AppShellState extends State<AppShell> {
   int _selectedIndex = 0;
+  bool _isServiceRunning = false; // <--- 追加: サービス実行状態を管理
 
   // 各タブに対応するウィジェットのリスト
   // このリスト内のウィジェットはIndexedStackによって状態が保持される
@@ -64,7 +66,6 @@ class _AppShellState extends State<AppShell> {
       }
     }
   }
-
 
   // 必要な権限を要求する関数
   Future<void> _requestPermissions() async {
@@ -103,23 +104,60 @@ class _AppShellState extends State<AppShell> {
   @override
   void initState() {
     super.initState();
-    // データ受信コールバックを登録
     FlutterForegroundTask.addTaskDataCallback(_onReceiveTaskData);
-    // UIフレームの描画完了後に権限要求とサービス初期化を実行
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Request permissions and initialize the service.
-      _requestPermissions();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _requestPermissions();
       _initService();
+      // アプリ起動時に現在のサービス状態を確認し、UIに反映
+      final isRunning = await FlutterForegroundTask.isRunningService;
+      if (mounted) {
+        setState(() {
+          _isServiceRunning = isRunning;
+        });
+      }
     });
   }
   
+
   @override
   void dispose() {
     // コールバックを解除
     FlutterForegroundTask.removeTaskDataCallback(_onReceiveTaskData);
     super.dispose();
   }
-  
+
+  // Foreground Task サービスを開始する関数
+  Future<void> _startForegroundService() async {
+    try {
+      // サービスが実行中でなければ開始する
+      if (!await FlutterForegroundTask.isRunningService) {
+        await FlutterForegroundTask.startService(
+          notificationTitle: 'ストップウォッチ実行中',
+          notificationText: 'タイマーがバックグラウンドで動作しています。',
+          callback: startCallback, // lib/services/foreground_task_handler.dart で定義されたコールバック
+        );
+      }
+      setState(() {
+        _isServiceRunning = true;
+      });
+      print('Foreground service started.');
+    } catch (e) {
+      print('Failed to start foreground service: $e');
+    }
+  }
+
+    // Foreground Task サービスを停止する関数
+  Future<void> _stopForegroundService() async {
+    try {
+      await FlutterForegroundTask.stopService();
+      setState(() {
+        _isServiceRunning = false;
+      });
+      print('Foreground service stopped.');
+    } catch (e) {
+      print('Failed to stop foreground service: $e');
+    }
+  }
   
   // BottomNavigationBarのアイテムがタップされたときの処理
   void _onItemTapped(int index) {
@@ -132,10 +170,7 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context); // 現在のテーマを取得
 
-    return Scaffold(
-      // IndexedStackを使用することで、タブを切り替えても各画面の状態が保持される
-      // indexプロパティで現在表示するウィジェットを指定し、
-      // childrenプロパティに表示候補のウィジェットリストを渡す
+    return Scaffold(   
       body: IndexedStack(
         index: _selectedIndex,
         children: _widgetOptions,
