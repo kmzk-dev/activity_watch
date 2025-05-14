@@ -21,10 +21,6 @@ import './widgets/log_color_summary_chart.dart';
 import './widgets/timer_display.dart';
 import './widgets/stopwatch_floating_action_button.dart';
 
-
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
-import '../services/foreground_task_handler.dart';
-
 class StopwatchScreenWidget extends StatefulWidget {
   const StopwatchScreenWidget({super.key});
 
@@ -412,25 +408,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       ),
     );
 
-    return PopScope(
-      canPop: !_isRunning, // サービスが実行中でなければポップを許可
-      // onPopInvoked: (bool didPop) { // 古いコールバック
-      onPopInvokedWithResult: (bool didPop, dynamic result) { // 新しいコールバック
-        if (didPop) {
-          // canPop が true で、実際にポップされた場合の処理 (必要であれば)
-          // result には Navigator.pop(context, result) の result が入る可能性があるが、
-          // 今回のシステムの「戻る」操作では通常 null。
-          print("StopwatchScreenClone: Pop allowed and occurred. Result: $result");
-          return;
-        }
-        // canPop が false で、ポップが試みられた場合の処理
-        // (didPop は false, result は null になる)
-        if (_isRunning) {
-          print("StopwatchScreenClone: Pop prevented while running, minimizing app.");
-          FlutterForegroundTask.minimizeApp();
-        }
-      },
-    child: VisibilityDetector(
+    return VisibilityDetector(
       key: const Key('stopwatch_screen_widget_visibility_detector'),
       onVisibilityChanged: (visibilityInfo) {
         final visiblePercentage = visibilityInfo.visibleFraction * 100;
@@ -449,7 +427,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
           onSettings: _navigateToSettings,
         ),
       ),
-    ),
     );
   }
 }

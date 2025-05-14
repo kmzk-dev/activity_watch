@@ -1,6 +1,6 @@
 // test/log_data_converter_test.dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:activity_watch/models/log_entry.dart'; // あなたの LogEntry モデルへのパス
+//import 'package:activity_watch/models/log_entry.dart'; // あなたの LogEntry モデルへのパス
 import 'package:activity_watch/theme/color_constants.dart'; // あなたの color_constants.dart へのパス
 import 'package:activity_watch/utils/log_data_converter.dart'; // あなたの log_data_converter.dart へのパス
 // import 'package:flutter/material.dart'; // Colors を使う場合など

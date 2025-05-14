@@ -5,7 +5,7 @@ import 'screens/stopwatch_screen.dart'; // ストップウォッチ画面をイ�
 import 'util.dart';
 import 'theme.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart'; // インポート済み
-import 'services/foreground_task_handler.dart';
+//import 'services/foreground_task_handler.dart';
 import 'screens/stopwatch_screen_clone.dart'; // クローンページをインポート
 
 
@@ -50,7 +50,7 @@ class _AppShellState extends State<AppShell> {
   // 各タブに対応するウィジェットのリスト
   // このリスト内のウィジェットはIndexedStackによって状態が保持される
   static const List<Widget> _widgetOptions = <Widget>[
-    StopwatchScreenCloneWidget(), // 計測タブの画面
+    StopwatchScreenWidget(), // 計測タブの画面
     SavedSessionsScreen(), // 履歴タブの画面
   ];
   

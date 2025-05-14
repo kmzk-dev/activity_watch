@@ -8,7 +8,7 @@ import 'package:vibration/vibration.dart';
 import '../models/log_entry.dart';
 import '../theme/color_constants.dart';
 
-import '../utils/time_formatters.dart';
+//import '../utils/time_formatters.dart';
 import '../utils/log_exporter.dart';
 import '../utils/dialog_utils.dart';
 import '../utils/session_dialog_utils.dart';
@@ -177,7 +177,7 @@ class _StopwatchScreenCloneWidgetState extends State<StopwatchScreenCloneWidget>
         allowWifiLock: false, // Wifi接続を維持するか
       ),
     );
-    print("StopwatchScreenClone: FlutterForegroundTask.init completed.");
+    //print("StopwatchScreenClone: FlutterForegroundTask.init completed.");
   }
 
   Future<void> _checkAndSyncServiceState() async {
@@ -611,25 +611,67 @@ class _StopwatchScreenCloneWidgetState extends State<StopwatchScreenCloneWidget>
       ),
     );
 
-    return VisibilityDetector(
-      key: const Key('stopwatch_screen_clone_visibility_detector'),
-      onVisibilityChanged: (visibilityInfo) {
-        final visiblePercentage = visibilityInfo.visibleFraction * 100;
-        if (mounted && visiblePercentage > 50) { // 画面の半分以上が表示されたら
-          print("StopwatchScreenClone: VisibilityDetector - visible");
-          loadSuggestionsFromPrefs(force: true); // サジェストを読み込み
-          _checkAndSyncServiceState(); // サービス状態を同期
+    //return VisibilityDetector(
+    //  key: const Key('stopwatch_screen_clone_visibility_detector'),
+    //  onVisibilityChanged: (visibilityInfo) {
+    //    final visiblePercentage = visibilityInfo.visibleFraction * 100;
+    //    if (mounted && visiblePercentage > 50) { // 画面の半分以上が表示されたら
+    //      print("StopwatchScreenClone: VisibilityDetector - visible");
+    //      loadSuggestionsFromPrefs(force: true); // サジェストを読み込み
+    //      _checkAndSyncServiceState(); // サービス状態を同期
+    //    }
+    //  },
+    //  child: Scaffold(
+    //    body: mainContent,
+    //    floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked, // FABの位置
+    //    floatingActionButton: StopwatchFloatingActionButton(
+    //      isRunning: _isRunning, // 現在の実行状態
+    //      onStartStopwatch: _handleStartStopwatch, // 開始処理
+    //      onStopStopwatch: _handleStopStopwatch, // 停止処理
+    //      onLapRecord: _handleLapRecord, // ラップ記録処理
+    //      onSettings: _navigateToSettings, // 設定画面へ遷移
+    //    ),
+    //  ),
+    //);
+
+        return PopScope(
+      canPop: !_isServiceActuallyRunning, // サービスが実行中でなければポップを許可
+      // onPopInvoked: (bool didPop) { // 古いコールバック
+      onPopInvokedWithResult: (bool didPop, dynamic result) { // 新しいコールバック
+        if (didPop) {
+          // canPop が true で、実際にポップされた場合の処理 (必要であれば)
+          // result には Navigator.pop(context, result) の result が入る可能性があるが、
+          // 今回のシステムの「戻る」操作では通常 null。
+          print("StopwatchScreenClone: Pop allowed and occurred. Result: $result");
+          return;
+        }
+        // canPop が false で、ポップが試みられた場合の処理
+        // (didPop は false, result は null になる)
+        if (_isServiceActuallyRunning) {
+          print("StopwatchScreenClone: Pop prevented while running, minimizing app.");
+          FlutterForegroundTask.minimizeApp();
         }
       },
-      child: Scaffold(
-        body: mainContent,
-        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked, // FABの位置
-        floatingActionButton: StopwatchFloatingActionButton(
-          isRunning: _isRunning, // 現在の実行状態
-          onStartStopwatch: _handleStartStopwatch, // 開始処理
-          onStopStopwatch: _handleStopStopwatch, // 停止処理
-          onLapRecord: _handleLapRecord, // ラップ記録処理
-          onSettings: _navigateToSettings, // 設定画面へ遷移
+      child: VisibilityDetector(
+        key: const Key('stopwatch_screen_clone_visibility_detector'),
+        onVisibilityChanged: (visibilityInfo) {
+          final visiblePercentage = visibilityInfo.visibleFraction * 100;
+          if (mounted && visiblePercentage > 50) {
+            print("StopwatchScreenClone: VisibilityDetector - visible");
+            loadSuggestionsFromPrefs(force: true);
+            _checkAndSyncServiceState();
+          }
+        },
+        child: Scaffold(
+          body: mainContent,
+          floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+          floatingActionButton: StopwatchFloatingActionButton(
+            isRunning: _isRunning,
+            onStartStopwatch: _handleStartStopwatch,
+            onStopStopwatch: _handleStopStopwatch,
+            onLapRecord: _handleLapRecord,
+            onSettings: _navigateToSettings,
+          ),
         ),
       ),
     );
