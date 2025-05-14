@@ -6,13 +6,13 @@ import 'util.dart';
 import 'theme.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart'; // インポート済み
 //import 'services/foreground_task_handler.dart';
-import 'screens/stopwatch_screen_clone.dart'; // クローンページをインポート
-
+import 'utils/stopwatch_notifier.dart'; // 追加
 
 // アプリケーションのエントリーポイント
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  FlutterForegroundTask.initCommunicationPort();
+  //FlutterForegroundTask.initCommunicationPort();
+  StopwatchNotifier.initializeService();
   runApp(const ActivityWatchApp());
 }
 

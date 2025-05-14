@@ -6,7 +6,7 @@ import 'package:visibility_detector/visibility_detector.dart';
 import 'package:vibration/vibration.dart';
 
 import '../models/log_entry.dart';
-import '../theme/color_constants.dart'; // colorLabels のために必要
+import '../theme/color_constants.dart';
 
 import '../utils/time_formatters.dart';
 import '../utils/log_exporter.dart';
@@ -14,6 +14,7 @@ import '../utils/dialog_utils.dart';
 import '../utils/session_dialog_utils.dart';
 import '../utils/session_storage.dart';
 import '../utils/string_utils.dart';
+import '../utils/stopwatch_notifier.dart';
 
 import './widgets/log_card_carousel.dart';
 import './settings_screen.dart';
@@ -21,9 +22,7 @@ import './widgets/log_color_summary_chart.dart';
 import './widgets/timer_display.dart';
 import './widgets/stopwatch_floating_action_button.dart';
 
-
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
-import '../services/foreground_task_handler.dart';
 
 class StopwatchScreenWidget extends StatefulWidget {
   const StopwatchScreenWidget({super.key});
@@ -34,11 +33,9 @@ class StopwatchScreenWidget extends StatefulWidget {
 
 class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with WidgetsBindingObserver {
   final Stopwatch _stopwatch = Stopwatch();
-  Timer? _timer;
+  Timer? _uiAndNotificationTimer;
   bool _isRunning = false;
   String _elapsedTime = '00:00:00:00';
-  final TextEditingController _sessionTitleController = TextEditingController();
-  final TextEditingController _sessionCommentController = TextEditingController();
 
   final List<LogEntry> _logs = [];
   DateTime? _currentActualSessionStartTime;
@@ -55,43 +52,42 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   static const double fabWidgetHeight = 120.0;
   static const double pageIndicatorHeight = 24.0;
 
-  bool? _hasVibrator; // バイブレーション機能の有無を保持するフラグ
+  bool? _hasVibrator;
 
-  // バイブレーションの時間を定義
-  static const int _lapVibrationDuration = 100; // ラップ記録時のバイブレーション時間(ms)
-  static const int _stopVibrationDuration = 300; // 停止時のバイブレーション時間(ms)
+  static const int _lapVibrationDuration = 100;
+  static const int _stopVibrationDuration = 300;
 
+  int _notificationUpdateCounter = 0;
+  // ★★★ 変更点: タイマー間隔が10msの場合、1秒ごとの通知更新には100回のティックが必要 ★★★
+  static const int _notificationUpdateIntervalTicks = 100;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _checkVibrationSupport(); // バイブレーションサポート状況を確認
+    _checkVibrationSupport();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         loadSuggestionsFromPrefs(force: true);
+        StopwatchNotifier.stopNotification();
       }
     });
   }
 
-  // デバイスがバイブレーションをサポートしているか確認
   Future<void> _checkVibrationSupport() async {
-    bool? hasVibrator = await Vibration.hasVibrator();
-    if (mounted) {
-      setState(() {
-        _hasVibrator = hasVibrator;
-      });
-    }
+    _hasVibrator = await Vibration.hasVibrator();
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
-    _timer?.cancel();
+    _uiAndNotificationTimer?.cancel();
     _stopwatch.stop();
-    _sessionTitleController.dispose();
-    _sessionCommentController.dispose();
+    if (_isRunning) {
+      StopwatchNotifier.stopNotification();
+    }
     super.dispose();
   }
 
@@ -106,19 +102,31 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (!_isRunning) return;
+    print("StopwatchScreen: AppLifecycleState changed to $state");
 
-    if (state == AppLifecycleState.paused) {
-      _timer?.cancel();
+    if (!_isRunning) {
+      if (state == AppLifecycleState.resumed) {
+         StopwatchNotifier.stopNotification();
+      }
+      return;
+    }
+
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive || state == AppLifecycleState.hidden) {
+      print("StopwatchScreen: App is not resumed. Notification should be active and updating.");
+      StopwatchNotifier.updateNotification(_elapsedTime);
     } else if (state == AppLifecycleState.resumed) {
+      print("StopwatchScreen: App resumed.");
       if (_currentActualSessionStartTime != null) {
         final Duration resumedElapsedTime = DateTime.now().difference(_currentActualSessionStartTime!);
         if (mounted) {
           setState(() {
             _elapsedTime = formatDisplayTime(resumedElapsedTime);
           });
+          StopwatchNotifier.updateNotification(_elapsedTime);
         }
-        _startTimer();
+        if (!(_uiAndNotificationTimer?.isActive ?? false)) {
+          _startUiAndNotificationTimer();
+        }
       }
     }
   }
@@ -135,19 +143,33 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     });
   }
 
-  void _startTimer() {
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(milliseconds: 10), (timer) {
+  void _startUiAndNotificationTimer() {
+    _uiAndNotificationTimer?.cancel();
+    _notificationUpdateCounter = 0;
+    // ★★★ 変更点: タイマーの間隔を Duration(milliseconds: 10) に設定 ★★★
+    _uiAndNotificationTimer = Timer.periodic(const Duration(milliseconds: 10), (timer) {
       if (!_isRunning || _currentActualSessionStartTime == null) {
         timer.cancel();
+        // StopwatchNotifier.stopNotification(); // _handleStopStopwatch で呼ばれる
+        print("StopwatchScreen: UI and Notification Timer stopped (not running or no start time).");
         return;
       }
+
+      final newElapsedTime = formatDisplayTime(DateTime.now().difference(_currentActualSessionStartTime!));
+
       if (mounted) {
         setState(() {
-          _elapsedTime = formatDisplayTime(DateTime.now().difference(_currentActualSessionStartTime!));
+          _elapsedTime = newElapsedTime;
         });
       }
+
+      _notificationUpdateCounter++;
+      if (_notificationUpdateCounter >= _notificationUpdateIntervalTicks) { // _notificationUpdateIntervalTicks は 100
+        StopwatchNotifier.updateNotification(newElapsedTime);
+        _notificationUpdateCounter = 0;
+      }
     });
+    print("StopwatchScreen: UI and Notification Timer started with 10ms interval.");
   }
 
   void _handleStartStopwatch() {
@@ -158,7 +180,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       _elapsedTime = '00:00:00:00';
       _stopwatch.start();
       _isRunning = true;
-      _startTimer();
       _currentPage = 0;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -166,57 +187,55 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
         _pageController.jumpToPage(0);
       }
     });
+    _startUiAndNotificationTimer();
+    StopwatchNotifier.startNotification(_elapsedTime);
+    print("StopwatchScreen: Stopwatch started. Initial notification shown.");
   }
 
   void _handleStopStopwatch() async {
     if (!_isRunning || _currentActualSessionStartTime == null) return;
 
-    // バイブレーションを実行 (停止時)
     if (_hasVibrator == true) {
       Vibration.vibrate(duration: _stopVibrationDuration);
     }
 
-    final Duration currentElapsedDuration = DateTime.now().difference(_currentActualSessionStartTime!);
-    final String currentTimeForLog = formatLogTime(currentElapsedDuration);
-    final String startTime = _logs.isEmpty ? '00:00:00' : _logs.last.endTime;
-    final newLog = LogEntry(
-      actualSessionStartTime: _currentActualSessionStartTime!,
-      startTime: startTime,
-      endTime: currentTimeForLog,
-      memo: '',
-      colorLabelName: colorLabels.keys.first, // `colorLabels` は `color_constants.dart` から
-    );
-    newLog.calculateDuration();
-    if (mounted) {
-      setState(() {
-        _logs.add(newLog);
-        _timer?.cancel();
-        _stopwatch.stop();
-        _isRunning = false;
-        _elapsedTime = formatDisplayTime(currentElapsedDuration);
-        _currentPage = 0;
-      });
-      FocusScope.of(context).unfocus();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_pageController.hasClients && _getDisplayLogs().isNotEmpty) {
-          _pageController.animateToPage(
-            0,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        }
-      });
-    }
+    _uiAndNotificationTimer?.cancel();
+    final Duration finalElapsedDuration = DateTime.now().difference(_currentActualSessionStartTime!);
+    
+    _isRunning = false;
+    _stopwatch.stop();
+
+    setState(() {
+      _elapsedTime = formatDisplayTime(finalElapsedDuration);
+      final String currentTimeForLog = formatLogTime(finalElapsedDuration);
+      final String startTime = _logs.isEmpty ? '00:00:00' : _logs.last.endTime;
+      final newLog = LogEntry(
+        actualSessionStartTime: _currentActualSessionStartTime!,
+        startTime: startTime,
+        endTime: currentTimeForLog,
+        memo: '',
+        colorLabelName: colorLabels.keys.first,
+      );
+      newLog.calculateDuration();
+      _logs.add(newLog);
+      _currentPage = 0;
+    });
+
+    StopwatchNotifier.stopNotification();
+    print("StopwatchScreen: Stopwatch stopped. Notification hidden.");
+
+    FocusScope.of(context).unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_pageController.hasClients && _getDisplayLogs().isNotEmpty) {
+        _pageController.animateToPage(0,
+            duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+      }
+    });
   }
 
   void _handleLapRecord() async {
     if (!_isRunning || _currentActualSessionStartTime == null) return;
-
-
-    // バイブレーションを実行 (ラップ記録時)
-    if (_hasVibrator == true) {
-      Vibration.vibrate(duration: _lapVibrationDuration);
-    }
+    if (_hasVibrator == true) Vibration.vibrate(duration: _lapVibrationDuration);
 
     final Duration currentElapsedDuration = DateTime.now().difference(_currentActualSessionStartTime!);
     final String currentTimeForLog = formatLogTime(currentElapsedDuration);
@@ -226,26 +245,22 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       startTime: startTime,
       endTime: currentTimeForLog,
       memo: '',
-      colorLabelName: colorLabels.keys.first, // `colorLabels` は `color_constants.dart` から
+      colorLabelName: colorLabels.keys.first,
     );
     newLog.calculateDuration();
 
-    if (mounted) {
-      setState(() {
-        _logs.add(newLog);
-        _currentPage = 0;
-      });
+    setState(() {
+      _logs.add(newLog);
+      _currentPage = 0;
+    });
 
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_pageController.hasClients && _getDisplayLogs().isNotEmpty) {
-           _pageController.animateToPage(
-            0,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        }
-      });
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_pageController.hasClients && _getDisplayLogs().isNotEmpty) {
+         _pageController.animateToPage(0,
+            duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+      }
+    });
+    print("StopwatchScreen: Lap recorded.");
   }
 
   Future<void> _showEditLogDialog(int pageViewIndex) async {
@@ -265,11 +280,9 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       availableColorLabels: colorLabels,
     );
     if (result != null && mounted) {
-      final String newMemo = result['memo'] ?? currentLog.memo;
-      final String newColorLabel = result['colorLabel'] ?? currentLog.colorLabelName;
       setState(() {
-        _logs[actualLogIndex].memo = newMemo;
-        _logs[actualLogIndex].colorLabelName = newColorLabel;
+        _logs[actualLogIndex].memo = result['memo'] ?? currentLog.memo;
+        _logs[actualLogIndex].colorLabelName = result['colorLabel'] ?? currentLog.colorLabelName;
       });
     }
     if (!mounted) return;
@@ -278,51 +291,36 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
 
   Future<void> _showSaveSessionDialog() async {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
-
     if (_logs.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('保存するログがありません。', style: TextStyle(color: colorScheme.onError)),
-          backgroundColor: colorScheme.error,
-        ),
+        SnackBar(content: Text('保存するログがありません。', style: TextStyle(color: colorScheme.onError)),
+                  backgroundColor: colorScheme.error),
       );
       return;
     }
     if (_isRunning) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('まずストップウォッチを停止してください。', style: TextStyle(color: colorScheme.onError)),
-          backgroundColor: colorScheme.error,
-        ),
+        SnackBar(content: Text('まずストップウォッチを停止してください。', style: TextStyle(color: colorScheme.onError)),
+                  backgroundColor: colorScheme.error),
       );
       return;
     }
     final Map<String, String>? sessionData = await showSessionDetailsInputDialog(
-      context: context,
-      dialogTitle: 'セッションを保存',
-      initialTitle: '',
-      initialComment: '',
-      positiveButtonText: '保存',
+      context: context, dialogTitle: 'セッションを保存', initialTitle: '',
+      initialComment: '', positiveButtonText: '保存',
     );
     if (!mounted) return;
     FocusScope.of(context).unfocus();
     if (sessionData != null && sessionData['title'] != null && sessionData['title']!.isNotEmpty) {
-      await saveSession(
-        context: context,
-        title: sessionData['title']!,
-        comment: sessionData['comment'],
-        logs: _logs,
-        savedSessionsKey: _savedSessionsKey,
-      );
-
+      await saveSession(context: context, title: sessionData['title']!,
+                        comment: sessionData['comment'], logs: _logs,
+                        savedSessionsKey: _savedSessionsKey);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('「${sessionData['title']}」としてセッションを保存しました。', style: TextStyle(color: colorScheme.onSurface)),
-            backgroundColor: colorScheme.surface,
-          ),
+          SnackBar(content: Text('「${sessionData['title']}」としてセッションを保存しました。', style: TextStyle(color: colorScheme.onSurface)),
+                    backgroundColor: colorScheme.surfaceVariant),
         );
       }
     }
@@ -336,21 +334,21 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const SettingsScreen()),
-    );
+    ).then((_){
+      if(mounted) loadSuggestionsFromPrefs(force: true);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final TextTheme textTheme = theme.textTheme;
-
     final displayLogsForCarousel = _getDisplayLogs();
     final bool isKeyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
     final double graphHeightPercentage = 0.25;
 
     Widget mainContent = SafeArea(
-      top: false,
-      bottom: false,
+      top: false, bottom: false,
       child: SingleChildScrollView(
         child: Column(
           children: <Widget>[
@@ -360,51 +358,25 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Tooltip(
-                    message: '現在のログを保存',
-                    child: IconButton(
-                      icon: const Icon(Icons.save_alt_outlined, size: 28),
-                      onPressed: (_logs.isNotEmpty && !_isRunning) ? _showSaveSessionDialog : null,
-                    ),
-                  ),
-                  Tooltip(
-                    message: 'ログを共有 (CSV)',
-                    child: IconButton(
-                      icon: const Icon(Icons.share_outlined, size: 28),
-                      onPressed: _logs.isNotEmpty
-                          ? () => shareLogsAsCsvText(context, _logs)
-                          : null,
-                    ),
-                  ),
+                  Tooltip(message: '現在のログを保存',
+                           child: IconButton(icon: const Icon(Icons.save_alt_outlined, size: 28),
+                                            onPressed: (_logs.isNotEmpty && !_isRunning) ? _showSaveSessionDialog : null)),
+                  Tooltip(message: 'ログを共有 (CSV)',
+                           child: IconButton(icon: const Icon(Icons.share_outlined, size: 28),
+                                            onPressed: _logs.isNotEmpty ? () => shareLogsAsCsvText(context, _logs) : null)),
                 ],
               ),
             ),
             if (!isKeyboardVisible)
-              SizedBox(
-                height: MediaQuery.of(context).size.height * graphHeightPercentage,
-                child: LogColorSummaryChart(
-                  logs: _logs,
-                ),
-              )
-            else
-              const SizedBox.shrink(),
-            SizedBox(
-              height: carouselHeight,
-              child: LogCardCarousel(
-                logs: displayLogsForCarousel,
-                onEditLog: _showEditLogDialog,
-                pageController: _pageController,
-                onPageChanged: _onPageChanged,
-              ),
-            ),
+              SizedBox(height: MediaQuery.of(context).size.height * graphHeightPercentage,
+                        child: LogColorSummaryChart(logs: _logs))
+            else const SizedBox.shrink(),
+            SizedBox(height: carouselHeight,
+                      child: LogCardCarousel(logs: displayLogsForCarousel, onEditLog: _showEditLogDialog,
+                                           pageController: _pageController, onPageChanged: _onPageChanged)),
             displayLogsForCarousel.isNotEmpty
-              ? Padding(
-                  padding: const EdgeInsets.only(top: 4.0, bottom: 8.0),
-                  child: Text(
-                    '${_currentPage + 1} / ${displayLogsForCarousel.length}',
-                    style: textTheme.bodySmall,
-                  ),
-                )
+              ? Padding(padding: const EdgeInsets.only(top: 4.0, bottom: 8.0),
+                          child: Text('${_currentPage + 1} / ${displayLogsForCarousel.length}', style: textTheme.bodySmall))
               : const SizedBox(height: pageIndicatorHeight),
             SizedBox(height: fabWidgetHeight + MediaQuery.of(context).padding.bottom + 20),
           ],
@@ -413,43 +385,40 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     );
 
     return PopScope(
-      canPop: !_isRunning, // サービスが実行中でなければポップを許可
-      // onPopInvoked: (bool didPop) { // 古いコールバック
-      onPopInvokedWithResult: (bool didPop, dynamic result) { // 新しいコールバック
+      canPop: !_isRunning,
+      onPopInvokedWithResult: (bool didPop, dynamic result) {
         if (didPop) {
-          // canPop が true で、実際にポップされた場合の処理 (必要であれば)
-          // result には Navigator.pop(context, result) の result が入る可能性があるが、
-          // 今回のシステムの「戻る」操作では通常 null。
-          print("StopwatchScreenClone: Pop allowed and occurred. Result: $result");
+          print("StopwatchScreen: Pop allowed and occurred. Result: $result");
+          StopwatchNotifier.stopNotification();
           return;
         }
-        // canPop が false で、ポップが試みられた場合の処理
-        // (didPop は false, result は null になる)
         if (_isRunning) {
-          print("StopwatchScreenClone: Pop prevented while running, minimizing app.");
+          print("StopwatchScreen: Pop prevented while running, minimizing app.");
           FlutterForegroundTask.minimizeApp();
+          StopwatchNotifier.startNotification(_elapsedTime);
         }
       },
-    child: VisibilityDetector(
-      key: const Key('stopwatch_screen_widget_visibility_detector'),
-      onVisibilityChanged: (visibilityInfo) {
-        final visiblePercentage = visibilityInfo.visibleFraction * 100;
-        if (mounted && visiblePercentage > 50) {
-          loadSuggestionsFromPrefs(force: true);
-        }
-      },
-      child: Scaffold(
-        body: mainContent,
-        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-        floatingActionButton: StopwatchFloatingActionButton(
-          isRunning: _isRunning,
-          onStartStopwatch: _handleStartStopwatch,
-          onStopStopwatch: _handleStopStopwatch,
-          onLapRecord: _handleLapRecord,
-          onSettings: _navigateToSettings,
+      child: VisibilityDetector(
+        key: const Key('stopwatch_screen_widget_visibility_detector'),
+        onVisibilityChanged: (visibilityInfo) {
+          final visiblePercentage = visibilityInfo.visibleFraction * 100;
+          if (mounted && visiblePercentage > 50) {
+            loadSuggestionsFromPrefs(force: true);
+            if (_isRunning) StopwatchNotifier.startNotification(_elapsedTime);
+          } else if (mounted && visiblePercentage < 10 && _isRunning) {
+            StopwatchNotifier.startNotification(_elapsedTime);
+          }
+        },
+        child: Scaffold(
+          body: mainContent,
+          floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+          floatingActionButton: StopwatchFloatingActionButton(
+            isRunning: _isRunning, onStartStopwatch: _handleStartStopwatch,
+            onStopStopwatch: _handleStopStopwatch, onLapRecord: _handleLapRecord,
+            onSettings: _navigateToSettings,
+          ),
         ),
       ),
-    ),
     );
   }
 }
