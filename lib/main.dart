@@ -50,7 +50,7 @@ class _AppShellState extends State<AppShell> {
   // 各タブに対応するウィジェットのリスト
   // このリスト内のウィジェットはIndexedStackによって状態が保持される
   static const List<Widget> _widgetOptions = <Widget>[
-    StopwatchScreenWidget(), // 計測タブの画面
+    StopwatchScreenCloneWidget(), // 計測タブの画面
     SavedSessionsScreen(), // 履歴タブの画面
   ];
   
@@ -66,22 +66,22 @@ class _AppShellState extends State<AppShell> {
     final ThemeData theme = Theme.of(context); // 現在のテーマを取得
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Activity Watch'), // 通常のタイトル
-        actions: [
+      //appBar: AppBar(
+      //  title: const Text('Activity Watch'), // 通常のタイトル
+      //  actions: [
           // クローンページへ遷移するためのテスト用ボタン
-          IconButton(
-            icon: const Icon(Icons.science_outlined, color: Colors.red), // 目立つように色を変更
-            tooltip: 'Test Foreground Service Screen',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const StopwatchScreenCloneWidget()),
-              );
-            },
-          ),
-        ],
-      ), 
+      //    IconButton(
+      //      icon: const Icon(Icons.science_outlined, color: Colors.red), // 目立つように色を変更
+      //      tooltip: 'Test Foreground Service Screen',
+      //      onPressed: () {
+      //        Navigator.push(
+      //          context,
+      //          MaterialPageRoute(builder: (context) => const StopwatchScreenCloneWidget()),
+      //        );
+      //      },
+      //    ),
+      //  ],
+      //), 
       body: IndexedStack(
         index: _selectedIndex,
         children: _widgetOptions,
