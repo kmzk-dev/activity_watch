@@ -410,6 +410,8 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
           }
         },
         child: Scaffold(
+          appBar: AppBar(
+          ),
           body: mainContent,
           floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
           floatingActionButton: StopwatchFloatingActionButton(

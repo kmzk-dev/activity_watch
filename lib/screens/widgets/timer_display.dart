@@ -1,5 +1,7 @@
 // lib/screens/widgets/timer_display.dart
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../theme/scale.dart';
 
 class TimerDisplay extends StatelessWidget {
   final String elapsedTime; // 表示する経過時間 (HH:MM:SS:MS形式)
@@ -11,11 +13,10 @@ class TimerDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // elapsedTime 文字列を時分秒部分とミリ秒部分に分割
-    // elapsedTime が "00:00:00:00" のような形式であることを前提とします。
+    // elapsedTime 文字列を時分秒部分とミリ秒部分に分割 00:00:00:00" のような形式であることを前提
     String mainTime = '00:00:00';
     String milliseconds = '00';
-
+    // 文字列を ':' で分割して、hh:mm:ssとmsに再構築
     if (elapsedTime.contains(':')) {
       int lastColonIndex = elapsedTime.lastIndexOf(':');
       if (lastColonIndex > 0 && lastColonIndex < elapsedTime.length - 1) {
@@ -24,26 +25,23 @@ class TimerDisplay extends StatelessWidget {
       }
     }
 
-    // ステータスバーの高さを取得
-    final double statusBarHeight = MediaQuery.of(context).padding.top;
-    // 上部のパディング値を定義
-    final double topPadding = statusBarHeight + 30.0;
-    // 下部のパディング値を上部パディングの3/4に設定
-    final double bottomPadding = topPadding * 0.35;
+    // --- フォントサイズ計算ロジック ---
+    // mainTime:画面幅の18%を基本とし、最小40px, 最大80px に制限
+    final screenWidth = MediaQuery.of(context).size.width;
+    final double mainTimeFontSize = (screenWidth * 0.15).clamp(40.0, 80.0);
+    // milliseconds:mainTimeFontSize の約40% (0.4倍) を基本とし、最小18px, 最大36px に制限
+    final double millisecondsFontSize = (mainTimeFontSize * 0.4).clamp(18.0, 36.0);
 
     return Container(
-      // 上部と下部のパディングを個別に設定
       padding: EdgeInsets.only(
-        top: topPadding,
-        bottom: bottomPadding,
-        left: 20.0, // 左右のパディングは変更なし
-        right: 20.0, // 左右のパディングは変更なし
+        bottom: MediaQuery.of(context).padding.top,// ステータスバーの高さをbottomに追加
       ),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(25.0),
-          bottomRight: Radius.circular(25.0),
+        border: Border(
+          bottom: BorderSide(
+            color: Theme.of(context).colorScheme.outline.withAlpha(Scale.alpha50),
+            width: Scale.bordersizetin, 
+          ),
         ),
       ),
       child: Row(
@@ -53,24 +51,19 @@ class TimerDisplay extends StatelessWidget {
         children: [
           Text(
             mainTime,
-            style: const TextStyle(
-              fontSize: 64.0,
-              fontWeight: FontWeight.bold,
-              fontFeatures: [FontFeature.tabularFigures()],
+            style: GoogleFonts.shareTech(
+              fontSize: mainTimeFontSize,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.only(left: 4.0, bottom: 4.0),
-            child: Text(
-              '.$milliseconds',
-              style: TextStyle(
-                fontSize: 22.0,
-                fontWeight: FontWeight.w600,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
+          Text(
+            '.$milliseconds',
+            style: GoogleFonts.shareTech(
+              fontSize: millisecondsFontSize,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
-        ],
+        ]
       ),
     );
   }
