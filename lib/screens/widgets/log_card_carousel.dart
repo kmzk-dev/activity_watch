@@ -28,7 +28,7 @@ class LogCardCarousel extends StatelessWidget {
         actualSessionStartTime: DateTime(1970), // 固定の過去日時、または DateTime.now()
         startTime: '前回の時間',
         endTime: 'ラップした時間',
-        memo: ' ', // メモは空（「なにもないこと」を示す）
+        memo: 'ラップを記録するとカードが編集できます', // メモは空（「なにもないこと」を示す）
         colorLabelName: colorLabels.keys.isNotEmpty
             ? colorLabels.keys.first // colorLabelsから最初のキーを使用
             : 'dark', // colorLabelsが空の場合のフォールバック
@@ -45,6 +45,7 @@ class LogCardCarousel extends StatelessWidget {
             log: dummyLog,
             logIndex: -1, // ダミーのインデックス（編集不可を示す）
             onEdit: (_) {}, // 編集ボタンは何もしない
+            showEditIcon: false, 
           ),
         ),
       );

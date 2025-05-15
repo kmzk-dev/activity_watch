@@ -16,18 +16,18 @@ Map<String, Color> get colorLabels {
       'dark': darkScheme.outline,
       'fire': darkScheme.error,
       'water': darkScheme.primary,
-      'Earth': darkScheme.tertiaryContainer,
-      'Light': darkScheme.secondary,
+      'Earth': darkScheme.tertiary,
+      'Light': darkScheme.inverseSurface,
     };
   } else {
     // ライトモード時の色定義
     final lightScheme = MaterialTheme.lightScheme();
     return {
-      'dark': lightScheme.outline,
+      'dark': lightScheme.onSurfaceVariant,
       'fire': lightScheme.error,
       'water': lightScheme.primary,
-      'Earth': lightScheme.tertiaryContainer,
-      'Light': lightScheme.secondary,
+      'Earth': lightScheme.tertiary,
+      'Light': lightScheme.secondaryFixedDim,
     };
   }
 }

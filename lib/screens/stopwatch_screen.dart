@@ -14,15 +14,18 @@ import '../utils/dialog_utils.dart';
 import '../utils/session_dialog_utils.dart';
 import '../utils/session_storage.dart';
 import '../utils/string_utils.dart';
-import '../utils/stopwatch_notifier.dart';
+import '../utils/stopwatch_notifier.dart'; // フォアグラウンドサービス用
 
 import './widgets/log_card_carousel.dart';
 import './settings_screen.dart';
 import './widgets/log_color_summary_chart.dart';
 import './widgets/timer_display.dart';
 import './widgets/stopwatch_floating_action_button.dart';
-
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+
+
+// flutter_foreground_task は直接このファイルで使われていないのでコメントアウト
+// import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 class StopwatchScreenWidget extends StatefulWidget {
   const StopwatchScreenWidget({super.key});
@@ -31,7 +34,7 @@ class StopwatchScreenWidget extends StatefulWidget {
   State<StopwatchScreenWidget> createState() => _StopwatchScreenWidgetState();
 }
 
-class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with WidgetsBindingObserver {
+class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   final Stopwatch _stopwatch = Stopwatch();
   Timer? _uiAndNotificationTimer;
   bool _isRunning = false;
@@ -58,14 +61,39 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   static const int _stopVibrationDuration = 300;
 
   int _notificationUpdateCounter = 0;
-  // ★★★ 変更点: タイマー間隔が10msの場合、1秒ごとの通知更新には100回のティックが必要 ★★★
   static const int _notificationUpdateIntervalTicks = 100;
+
+  late AnimationController _carouselAnimationController;
+  late Animation<double> _carouselFadeAnimation;
+  late Animation<Offset> _carouselSlideAnimation;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _checkVibrationSupport();
+
+    _carouselAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 250),
+    );
+
+    _carouselFadeAnimation = CurvedAnimation(
+      parent: _carouselAnimationController,
+      curve: Curves.easeInOut,
+    );
+
+    _carouselSlideAnimation = Tween<Offset>(
+      begin: const Offset(1.25, 0.0),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _carouselAnimationController,
+      //curve: Curves.easeOutCubic,
+      curve: Curves.easeOutBack,
+    ));
+
+    _carouselAnimationController.value = 1.0;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         loadSuggestionsFromPrefs(force: true);
@@ -81,6 +109,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
 
   @override
   void dispose() {
+    _carouselAnimationController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     _uiAndNotificationTimer?.cancel();
@@ -112,10 +141,10 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     }
 
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive || state == AppLifecycleState.hidden) {
-      print("StopwatchScreen: App is not resumed. Notification should be active and updating.");
+      print("StopwatchScreen: App is not resumed. Updating notification.");
       StopwatchNotifier.updateNotification(_elapsedTime);
     } else if (state == AppLifecycleState.resumed) {
-      print("StopwatchScreen: App resumed.");
+      print("StopwatchScreen: App resumed. Syncing time.");
       if (_currentActualSessionStartTime != null) {
         final Duration resumedElapsedTime = DateTime.now().difference(_currentActualSessionStartTime!);
         if (mounted) {
@@ -146,33 +175,30 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   void _startUiAndNotificationTimer() {
     _uiAndNotificationTimer?.cancel();
     _notificationUpdateCounter = 0;
-    // ★★★ 変更点: タイマーの間隔を Duration(milliseconds: 10) に設定 ★★★
     _uiAndNotificationTimer = Timer.periodic(const Duration(milliseconds: 10), (timer) {
       if (!_isRunning || _currentActualSessionStartTime == null) {
         timer.cancel();
-        // StopwatchNotifier.stopNotification(); // _handleStopStopwatch で呼ばれる
-        print("StopwatchScreen: UI and Notification Timer stopped (not running or no start time).");
+        print("StopwatchScreen: UI and Notification Timer stopped.");
         return;
       }
-
       final newElapsedTime = formatDisplayTime(DateTime.now().difference(_currentActualSessionStartTime!));
-
       if (mounted) {
         setState(() {
           _elapsedTime = newElapsedTime;
         });
       }
-
       _notificationUpdateCounter++;
-      if (_notificationUpdateCounter >= _notificationUpdateIntervalTicks) { // _notificationUpdateIntervalTicks は 100
+      if (_notificationUpdateCounter >= _notificationUpdateIntervalTicks) {
         StopwatchNotifier.updateNotification(newElapsedTime);
         _notificationUpdateCounter = 0;
       }
     });
-    print("StopwatchScreen: UI and Notification Timer started with 10ms interval.");
+    print("StopwatchScreen: UI and Notification Timer started.");
   }
 
   void _handleStartStopwatch() {
+    _carouselAnimationController.value = 1.0;
+
     setState(() {
       _logs.clear();
       _stopwatch.reset();
@@ -189,21 +215,19 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     });
     _startUiAndNotificationTimer();
     StopwatchNotifier.startNotification(_elapsedTime);
-    print("StopwatchScreen: Stopwatch started. Initial notification shown.");
+    print("StopwatchScreen: Stopwatch started.");
   }
 
   void _handleStopStopwatch() async {
     if (!_isRunning || _currentActualSessionStartTime == null) return;
-
-    if (_hasVibrator == true) {
-      Vibration.vibrate(duration: _stopVibrationDuration);
-    }
+    if (_hasVibrator == true) Vibration.vibrate(duration: _stopVibrationDuration);
 
     _uiAndNotificationTimer?.cancel();
     final Duration finalElapsedDuration = DateTime.now().difference(_currentActualSessionStartTime!);
-    
     _isRunning = false;
     _stopwatch.stop();
+
+    await _carouselAnimationController.reverse();
 
     setState(() {
       _elapsedTime = formatDisplayTime(finalElapsedDuration);
@@ -222,9 +246,11 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     });
 
     StopwatchNotifier.stopNotification();
-    print("StopwatchScreen: Stopwatch stopped. Notification hidden.");
-
+    print("StopwatchScreen: Stopwatch stopped.");
     FocusScope.of(context).unfocus();
+
+    _carouselAnimationController.forward();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_pageController.hasClients && _getDisplayLogs().isNotEmpty) {
         _pageController.animateToPage(0,
@@ -236,6 +262,8 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   void _handleLapRecord() async {
     if (!_isRunning || _currentActualSessionStartTime == null) return;
     if (_hasVibrator == true) Vibration.vibrate(duration: _lapVibrationDuration);
+
+    await _carouselAnimationController.reverse();
 
     final Duration currentElapsedDuration = DateTime.now().difference(_currentActualSessionStartTime!);
     final String currentTimeForLog = formatLogTime(currentElapsedDuration);
@@ -254,17 +282,19 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       _currentPage = 0;
     });
 
+    _carouselAnimationController.forward();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_pageController.hasClients && _getDisplayLogs().isNotEmpty) {
          _pageController.animateToPage(0,
             duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
       }
     });
-    print("StopwatchScreen: Lap recorded.");
+    print("StopwatchScreen: Lap recorded, carousel animated.");
   }
 
   Future<void> _showEditLogDialog(int pageViewIndex) async {
-    if (_logs.isEmpty || pageViewIndex < 0 ) return;
+    if (_logs.isEmpty || pageViewIndex < 0 || pageViewIndex >= _logs.length) return;
     final int actualLogIndex = _logs.length - 1 - pageViewIndex;
     if (actualLogIndex < 0 || actualLogIndex >= _logs.length) return;
 
@@ -280,6 +310,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       availableColorLabels: colorLabels,
     );
     if (result != null && mounted) {
+      // 編集時はアニメーションなしで直接データを更新
       setState(() {
         _logs[actualLogIndex].memo = result['memo'] ?? currentLog.memo;
         _logs[actualLogIndex].colorLabelName = result['colorLabel'] ?? currentLog.colorLabelName;
@@ -371,9 +402,15 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
               SizedBox(height: MediaQuery.of(context).size.height * graphHeightPercentage,
                         child: LogColorSummaryChart(logs: _logs))
             else const SizedBox.shrink(),
-            SizedBox(height: carouselHeight,
-                      child: LogCardCarousel(logs: displayLogsForCarousel, onEditLog: _showEditLogDialog,
-                                           pageController: _pageController, onPageChanged: _onPageChanged)),
+            SlideTransition(
+              position: _carouselSlideAnimation,
+              child: FadeTransition(
+                opacity: _carouselFadeAnimation,
+                child: SizedBox(height: carouselHeight,
+                          child: LogCardCarousel(logs: displayLogsForCarousel, onEditLog: _showEditLogDialog,
+                                               pageController: _pageController, onPageChanged: _onPageChanged)),
+              ),
+            ),
             displayLogsForCarousel.isNotEmpty
               ? Padding(padding: const EdgeInsets.only(top: 4.0, bottom: 8.0),
                           child: Text('${_currentPage + 1} / ${displayLogsForCarousel.length}', style: textTheme.bodySmall))
@@ -394,7 +431,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
         }
         if (_isRunning) {
           print("StopwatchScreen: Pop prevented while running, minimizing app.");
-          FlutterForegroundTask.minimizeApp();
+          FlutterForegroundTask.minimizeApp(); // 必要に応じてインポート
           StopwatchNotifier.startNotification(_elapsedTime);
         }
       },
@@ -411,13 +448,19 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
         },
         child: Scaffold(
           appBar: AppBar(
+            actions: <Widget>[
+              IconButton(
+                icon: const Icon(Icons.settings_outlined),
+                tooltip: '設定',
+                onPressed: _navigateToSettings,
+              ),
+            ],
           ),
           body: mainContent,
           floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
           floatingActionButton: StopwatchFloatingActionButton(
             isRunning: _isRunning, onStartStopwatch: _handleStartStopwatch,
             onStopStopwatch: _handleStopStopwatch, onLapRecord: _handleLapRecord,
-            onSettings: _navigateToSettings,
           ),
         ),
       ),

@@ -6,11 +6,7 @@ class StopwatchFloatingActionButton extends StatelessWidget {
   final VoidCallback? onStartStopwatch;
   final VoidCallback? onStopStopwatch;
   final VoidCallback? onLapRecord;
-  final VoidCallback? onSettings;
-  // final Color? primaryColor; // マテリアルテーマ準拠のため削除、またはテーマから取得するように変更
-  // final Color? stopColor; // マテリアルテーマ準拠のため削除、またはテーマから取得するように変更
-  // final Color? secondaryColor; // マテリアルテーマ準拠のため削除、またはテーマから取得するように変更
-  // final Color? disabledColor; // マテリアルテーマ準拠のため削除、またはテーマから取得するように変更
+
 
   const StopwatchFloatingActionButton({
     super.key,
@@ -18,17 +14,13 @@ class StopwatchFloatingActionButton extends StatelessWidget {
     this.onStartStopwatch,
     this.onStopStopwatch,
     this.onLapRecord,
-    this.onSettings,
-    // this.primaryColor, // マテリアルテーマ準拠のため削除
-    // this.stopColor, // マテリアルテーマ準拠のため削除
-    // this.secondaryColor, // マテリアルテーマ準拠のため削除
-    // this.disabledColor, // マテリアルテーマ準拠のため削除
   });
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colorScheme = theme.colorScheme;
+    final Color invisibleColor = theme.scaffoldBackgroundColor; // 背景色と同じにして要素を隠す
 
     // FABのサイズ定義
     const double largeFabDimension = 88.0;
@@ -46,22 +38,21 @@ class StopwatchFloatingActionButton extends StatelessWidget {
       height: fabWidgetHeight,
       alignment: Alignment.center,
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
-          // 左ボタン (設定)
+          // ダミー:レイアウトのために空のSizedBoxを使用
           SizedBox(
             width: smallFabDimension,
             height: smallFabDimension,
             child: FloatingActionButton(
-              heroTag: 'settingsFab_separated',
-              onPressed: onSettings,
-              // backgroundColor: Colors.grey[300], // 修正: テーマの色を使用
-              //backgroundColor: theme.colorScheme.surfaceVariant, // または適切なテーマの色
-              elevation: 2,
+              heroTag: 'invisibleFab_separated',
+              onPressed: null,
+              backgroundColor: invisibleColor,
+              foregroundColor: invisibleColor,
+              elevation: 0,
               shape: const CircleBorder(),
-              // child: Icon(Icons.settings_outlined, color: Colors.grey[700], size: smallIconSize), // 修正: テーマの色を使用
-              child: Icon(Icons.settings_outlined, color: theme.colorScheme.onSurfaceVariant, size: smallIconSize),
+              child: Icon(Icons.settings_outlined, color: invisibleColor, size: smallIconSize),
             ),
           ),
           // 中央ボタン (開始/停止)
@@ -71,14 +62,11 @@ class StopwatchFloatingActionButton extends StatelessWidget {
             child: FloatingActionButton(
               heroTag: 'startStopFab_separated',
               onPressed: isRunning ? onStopStopwatch : onStartStopwatch,
-              // backgroundColor: isRunning ? currentStopColor : currentPrimaryColor, // 修正: テーマの色を使用
               backgroundColor: isRunning ? colorScheme.error : colorScheme.primary,
               elevation: 4,
               shape: const CircleBorder(),
               child: Icon(
                 isRunning ? Icons.stop_rounded : Icons.play_arrow_rounded,
-                // color: Colors.white, // 修正: アイコンの色はテーマによって自動的に決定されることが多い
-                // 必要であれば明示的に指定: colorScheme.onError または colorScheme.onPrimary
                 color: isRunning ? colorScheme.onError : colorScheme.onPrimary,
                 size: largeIconSize,
               ),
@@ -91,13 +79,11 @@ class StopwatchFloatingActionButton extends StatelessWidget {
             child: FloatingActionButton(
               heroTag: 'lapRecordFab_separated',
               onPressed: isRunning ? onLapRecord : null,
-              // backgroundColor: isRunning ? currentSecondaryColor : currentDisabledColor, // 修正: テーマの色を使用
-              backgroundColor: isRunning ? colorScheme.secondary : theme.disabledColor.withOpacity(0.12), // 無効状態の背景色
-              foregroundColor: isRunning ? colorScheme.onSecondary : theme.disabledColor, // 無効状態のアイコン色
-              elevation: 2,
+              backgroundColor: isRunning ? colorScheme.secondary : invisibleColor, 
+              foregroundColor: isRunning ? colorScheme.onSecondary : invisibleColor,
+              elevation: isRunning ? 2 : 0,
               shape: const CircleBorder(),
-              // child: Icon(Icons.timer_outlined, color: Colors.white, size: smallIconSize), // 修正: テーマの色を使用
-               child: Icon(Icons.timer_outlined, size: smallIconSize),
+              child: Icon(Icons.timer_outlined, size: smallIconSize),
             ),
           ),
         ],

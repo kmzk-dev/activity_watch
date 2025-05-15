@@ -2,55 +2,57 @@
 
 import 'package:flutter/material.dart';
 import '../../models/log_entry.dart';
+import '../../theme/scale.dart'; // Scaleクラスをインポート
 
 class LogCardItem extends StatelessWidget {
   final LogEntry log;
   final int logIndex;
   final Function(int) onEdit; // 編集ボタンが押されたときのコールバック
+  final bool showEditIcon; // <--- 追加: 編集アイコンの表示フラグ
 
   const LogCardItem({
     super.key,
     required this.log,
     required this.logIndex,
     required this.onEdit,
+    this.showEditIcon = true, // <--- 追加: デフォルトはtrue（表示する）
   });
 
   @override
   Widget build(BuildContext context) {
 
     final bool isCommentEmpty = log.memo.isEmpty;
-    final Color cardBackgroundColor = log.labelColor.withAlpha(115);
-    final Color defaultForegroundColor = ThemeData.estimateBrightnessForColor(cardBackgroundColor) == Brightness.dark
-        ? Colors.white // 暗い背景なら白
-        : Colors.black; // 明るい背景なら黒
-    // より Material Design 3 に準拠するなら、colorScheme の onXXXContainer 系を使うことを検討
-    // final Color effectiveForegroundColor = colorScheme.onSurface; // 一例
+    final Color cardBackgroundColor = log.labelColor.withAlpha(Scale.alpha87);
+    final Color defaultForegroundColor = Theme.of(context).colorScheme.surface;
 
     final lapTimeStyle = TextStyle(
       fontSize: 14.0,
       fontWeight: FontWeight.bold,
       color: defaultForegroundColor,
     );
+
     final lapTimeLabelStyle = TextStyle(
       fontSize: 12.0,
       fontWeight: FontWeight.bold,
-      color: defaultForegroundColor.withAlpha((255 * 0.87).round()),
+      color: defaultForegroundColor.withAlpha(Scale.alpha87),
     );
+
     final timeTextStyle = TextStyle(
       fontSize: 13.5,
-      color: defaultForegroundColor.withAlpha((255 * 0.87).round()),
+      color: defaultForegroundColor.withAlpha(Scale.alpha87),
       fontWeight: FontWeight.w500,
       fontFeatures: const [FontFeature.tabularFigures()],
     );
+
     final commentTextStyle = TextStyle(
       fontSize: 14.0,
       color: isCommentEmpty
-          ? defaultForegroundColor.withAlpha((255 * 0.6).round())
-          : defaultForegroundColor.withAlpha((255 * 0.87).round()),
+          ? defaultForegroundColor.withAlpha(Scale.alpha50)
+          : defaultForegroundColor.withAlpha(Scale.alpha87),
       height: 1.3,
     );
-    final Color iconColor = defaultForegroundColor.withAlpha((255 * 0.7).round());
 
+    final Color iconColor = defaultForegroundColor.withAlpha(Scale.alpha70);
 
     const double fixedCardHeight = 160.0;
 
@@ -78,7 +80,7 @@ class LogCardItem extends StatelessWidget {
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
                       decoration: BoxDecoration(
-                        color: log.labelColor.withAlpha((255 * 0.2).round()),
+                        color: log.labelColor.withAlpha(Scale.alpha60),
                         borderRadius: BorderRadius.circular(8.0),
                       ),
                       child: Row(
@@ -119,27 +121,43 @@ class LogCardItem extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 36,
-                child: Tooltip(
-                  message: 'コメントを編集',
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () {
-                        onEdit(logIndex);
-                      },
-                      borderRadius: BorderRadius.circular(18),
-                      child: Icon(
-                        Icons.edit,
-                        size: 20,
-                        color: iconColor,
+              // --- 編集アイコン ---
+              if (showEditIcon) ...[
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 36,
+                  child: Tooltip(
+                    message: 'コメントを編集',
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          onEdit(logIndex);
+                        },
+                        borderRadius: BorderRadius.circular(18),
+                        child: Icon(
+                          Icons.edit,
+                          size: 20,
+                          color: iconColor,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
+               ] else ...[
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 36,
+                  child: Tooltip(
+                    message: '編集不可',
+                    child: Icon(
+                      Icons.lock,
+                      size: 20,
+                      color: iconColor,
+                    ),
+                  ),
+                ),
+               ],
             ],
           ),
         ),
