@@ -2,10 +2,11 @@
 import 'package:flutter/material.dart';
 import '../../models/log_entry.dart'; // LogEntryモデル
 import 'log_card_item.dart'; // LogCardItemウィジェット
+import '../../theme/color_constants.dart'; // colorLabels をインポート
 
 class LogCardCarousel extends StatelessWidget {
-  final List<LogEntry> logs; // 表示するログのリスト (表示したい順序で渡されることを期待)
-  final Function(int pageViewIndex) onEditLog; // 各ログカードの編集ボタンが押されたときのコールバック
+  final List<LogEntry> logs;
+  final Function(int pageViewIndex) onEditLog;
   final PageController? pageController;
   final Function(int page)? onPageChanged;
 
@@ -22,19 +23,34 @@ class LogCardCarousel extends StatelessWidget {
     final Color listBackgroundColor = Theme.of(context).scaffoldBackgroundColor;
 
     if (logs.isEmpty) {
-      return Center(
+      // データがない場合、ダミーのLogEntryを作成して表示
+      final LogEntry dummyLog = LogEntry(
+        actualSessionStartTime: DateTime(1970), // 固定の過去日時、または DateTime.now()
+        startTime: '前回の時間',
+        endTime: 'ラップした時間',
+        memo: ' ', // メモは空（「なにもないこと」を示す）
+        colorLabelName: colorLabels.keys.isNotEmpty
+            ? colorLabels.keys.first // colorLabelsから最初のキーを使用
+            : 'dark', // colorLabelsが空の場合のフォールバック
+      );
+      dummyLog.calculateDuration(); // duration を 0 に設定
+
+      // PageView.builder内のPaddingと合わせて、単一のカードを表示
+      return Container(
+        color: listBackgroundColor, // 背景色を適用
+        alignment: Alignment.center, // 中央に配置
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            'NO DATA',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.grey[700],
-                ),
+          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+          child: LogCardItem(
+            log: dummyLog,
+            logIndex: -1, // ダミーのインデックス（編集不可を示す）
+            onEdit: (_) {}, // 編集ボタンは何もしない
           ),
         ),
       );
     }
 
+    // データがある場合は、これまで通りPageView.builderで表示
     return Container(
       color: listBackgroundColor,
       child: PageView.builder(
@@ -42,16 +58,12 @@ class LogCardCarousel extends StatelessWidget {
         itemCount: logs.length,
         onPageChanged: onPageChanged,
         itemBuilder: (context, index) {
-          // PageViewのindexは、渡されたlogsリストのindexと一致する。
-          // 呼び出し側(stopwatch_screen.dart)で表示順を制御したリストを渡す。
           final log = logs[index];
-          // onEditLogに渡すindexは、この表示用リストのindex。
-          // 呼び出し側で、このindexを元の_logsリストの実際のindexにマッピングする。
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
             child: LogCardItem(
               log: log,
-              logIndex: index, // 表示用リストのインデックスを渡す
+              logIndex: index,
               onEdit: onEditLog,
             ),
           );

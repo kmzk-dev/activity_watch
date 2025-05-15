@@ -1,8 +1,8 @@
 // lib/screens/widgets/log_color_summary_chart.dart
 import 'package:flutter/material.dart';
-import 'dart:math'; // max関数とmin関数を使用するためにインポート
-import '../../models/log_entry.dart'; // LogEntryモデル
-import '../../theme/color_constants.dart'; // colorLabelsを使用
+import 'dart:math';
+import '../../models/log_entry.dart';
+import '../../theme/color_constants.dart';
 
 class LogColorSummaryChart extends StatelessWidget {
   final List<LogEntry> logs;
@@ -14,7 +14,6 @@ class LogColorSummaryChart extends StatelessWidget {
 
   Map<String, Duration> _calculateColorLabelDurations() {
     final Map<String, Duration> colorDurations = {};
-    // colorLabels からキーを取得して初期化
     for (var labelName in colorLabels.keys) {
       colorDurations[labelName] = Duration.zero;
     }
@@ -23,7 +22,8 @@ class LogColorSummaryChart extends StatelessWidget {
         if (log.duration != null) {
           if (colorDurations.containsKey(log.colorLabelName)) {
             colorDurations[log.colorLabelName] =
-                (colorDurations[log.colorLabelName] ?? Duration.zero) + log.duration!;
+                (colorDurations[log.colorLabelName] ?? Duration.zero) +
+                    log.duration!;
           }
         }
       }
@@ -36,214 +36,199 @@ class LogColorSummaryChart extends StatelessWidget {
       return Duration.zero;
     }
     return logs.fold(
-        Duration.zero, (previousValue, log) => previousValue + (log.duration ?? Duration.zero));
+        Duration.zero,
+        (previousValue, log) =>
+            previousValue + (log.duration ?? Duration.zero));
   }
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context); // テーマを取得
-    final ColorScheme colorScheme = theme.colorScheme; // カラーキームを取得
-    final TextTheme textTheme = theme.textTheme; // テキストテーマを取得
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+    final TextTheme textTheme = theme.textTheme;
+    final Color chartBackgroundColor = theme.canvasColor;
 
-    final Map<String, Duration> colorLabelDurations = _calculateColorLabelDurations();
-    final Duration totalSessionDuration = _calculateTotalSessionDuration();
-    final double totalSessionDurationInSeconds = totalSessionDuration.inSeconds > 0 ? totalSessionDuration.inSeconds.toDouble() : 1.0;
+    Map<String, Duration> displayColorDurations;
+    Duration displayTotalSessionDuration;
 
-    const double initialMinBarHeight = 2.0;
+    Map<String, Duration> actualColorDurations = _calculateColorLabelDurations();
+    Duration actualTotalSessionDuration = _calculateTotalSessionDuration();
+
+    if (logs.isEmpty || actualTotalSessionDuration.inSeconds == 0) {
+      if (colorLabels.isEmpty) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              '色定義がありません',
+              style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
+            ),
+          ),
+        );
+      }
+      displayColorDurations = {};
+      const Duration equalShareDuration = Duration(seconds: 1);
+      int numberOfColors = 0;
+      for (var labelName in colorLabels.keys) {
+        displayColorDurations[labelName] = equalShareDuration;
+        numberOfColors++;
+      }
+      displayTotalSessionDuration = Duration(seconds: numberOfColors * equalShareDuration.inSeconds);
+      if (displayTotalSessionDuration.inSeconds == 0 && numberOfColors > 0) {
+          displayTotalSessionDuration = const Duration(seconds: 1);
+      }
+    } else {
+      displayColorDurations = actualColorDurations;
+      displayTotalSessionDuration = actualTotalSessionDuration;
+    }
+
+    final List<MapEntry<String, Duration>> validEntries = displayColorDurations
+        .entries
+        .where((entry) => entry.value.inSeconds > 0)
+        .toList();
+
+    if (displayTotalSessionDuration.inSeconds == 0 || (colorLabels.isNotEmpty && validEntries.isEmpty)) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text(
+            '表示するデータがありません (期間0またはエントリなし)',
+            style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
+          ),
+        ),
+      );
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final double totalAvailableHeight = constraints.maxHeight;
-        List<Widget> chartItems = [];
+        final double availableHeight = constraints.maxHeight;
 
-        final double widgetVerticalMargin = 8.0 * 2;
-        final double heightAfterWidgetMargin = max(0, totalAvailableHeight - widgetVerticalMargin);
-
-        final double containerInternalVerticalPadding = 8.0 * 2;
-        final double stackAreaHeight = max(0, heightAfterWidgetMargin - containerInternalVerticalPadding);
-
-        const double labelTextSize = 10.0;
-        final textPainter = TextPainter(
-          text: TextSpan(text: "X", style: TextStyle(fontSize: labelTextSize, color: textTheme.bodySmall?.color)),
-          textDirection: Directionality.of(context),
-          textScaler: MediaQuery.textScalerOf(context),
-        )..layout(minWidth: 0, maxWidth: double.infinity);
-        final double actualLabelTextHeight = textPainter.size.height;
-
-        const double paddingBelowBar = 4.0;
-        final double nonBarElementsHeight = actualLabelTextHeight + paddingBelowBar;
-        final double safetyBuffer = 8.0;
-
-        final bool canShowLabelAndPadding = stackAreaHeight >= (nonBarElementsHeight + initialMinBarHeight + safetyBuffer);
-
-        double maxBarHeight; // バーが取りうる最大の高さ
-        if (canShowLabelAndPadding) {
-          maxBarHeight = stackAreaHeight - nonBarElementsHeight - safetyBuffer;
-        } else {
-          maxBarHeight = stackAreaHeight - safetyBuffer;
-        }
-        maxBarHeight = max(0, maxBarHeight);
-
-        if (logs.isEmpty) {
-          // colorLabels はユーザー定義の色なので、そのまま使用
-          colorLabels.forEach((labelName, defaultColor) {
-            chartItems.add(
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: <Widget>[
+              // 左側: 凡例 (色付きの四角のみ)
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: <Widget>[
-                      Container(
-                        width: 20.0,
-                        height: initialMinBarHeight, // 初期表示のバーの高さ
-                        decoration: BoxDecoration(
-                          // 修正: ログがない場合のバーの色。テーマのアクセントカラーや無効化された色などを検討
-                          // defaultColor は colorLabels からの色なので、ここではそれを薄くして使用。
-                          // よりテーマに合わせるなら、colorScheme.surfaceVariant や theme.disabledColor などを使用。
-                          color: defaultColor.withAlpha((255 * 0.3).round()), // ★修正: withOpacity(0.3) から変更 (alpha: 77)
-                          // color: colorScheme.surfaceVariant.withAlpha((255 * 0.5).round()), // テーマに合わせた代替案 (alpha: 128)
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(4.0),
-                            topRight: Radius.circular(4.0),
-                          ),
+                flex: 1, // 凡例エリアの幅を少し狭く調整 (例: flex 1)
+                child: Container(
+                  height: availableHeight,
+                  child: ListView.builder(
+                    itemCount: validEntries.length,
+                    itemBuilder: (context, index) {
+                      final entry = validEntries[index];
+                      final String labelName = entry.key; // labelName は色の取得に必要
+                      final Color color = colorLabels[labelName] ?? Colors.grey;
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 3.0), // アイテム間の上下の余白
+                        child: Row( // 中央揃えのため、Rowでラップすることも検討
+                          mainAxisAlignment: MainAxisAlignment.center, // 四角を中央に
+                          children: [
+                            Container(
+                              width: 12, // 四角の幅
+                              height: 12, // 四角の高さ
+                              decoration: BoxDecoration(
+                                color: color,
+                                shape: BoxShape.rectangle, // または BoxShape.circle
+                                // borderRadius: BorderRadius.circular(2.0), // 四角の場合
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      if (canShowLabelAndPadding) ...[
-                        const SizedBox(height: paddingBelowBar),
-                        Text(
-                          labelName,
-                          style: TextStyle(
-                            fontSize: labelTextSize,
-                            // 修正: ログがない場合のラベルテキストの色。textThemeの補助的な色を使用。
-                            color: textTheme.bodySmall?.color?.withAlpha((255 * 0.7).round()) ?? colorScheme.onSurface.withAlpha((255 * 0.7).round()), // ★修正: withOpacity(0.7) から変更 (alpha: 179)
-                          ),
-                          textAlign: TextAlign.center,
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                      ]
-                    ],
+                      );
+                    },
                   ),
                 ),
               ),
-            );
-          });
-        } else {
-          // colorLabels はユーザー定義の色なので、そのまま使用
-          colorLabels.forEach((labelName, defaultColor) {
-            final Duration duration = colorLabelDurations[labelName] ?? Duration.zero;
-            // barColor は colorLabels からの色なので、そのまま使用
-            final Color barColor = defaultColor;
+              const SizedBox(width: 8), // 凡例とグラフの間のスペースを少し調整
 
-            final double barHeightRatio = totalSessionDurationInSeconds > 0 && duration.inSeconds > 0
-                ? (duration.inSeconds / totalSessionDurationInSeconds)
-                : 0.0;
-
-            double finalBarHeight = maxBarHeight * barHeightRatio;
-
-            if (duration.inSeconds > 0 && finalBarHeight < initialMinBarHeight && maxBarHeight >= initialMinBarHeight) {
-              finalBarHeight = initialMinBarHeight;
-            } else if (duration.inSeconds == 0 && logs.isNotEmpty) {
-                 finalBarHeight = 0;
-            }
-            finalBarHeight = max(0, min(finalBarHeight, maxBarHeight));
-
-            chartItems.add(
+              // 右側: 円グラフ
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: <Widget>[
-                      Container(
-                        width: 20.0,
-                        height: finalBarHeight,
-                        decoration: BoxDecoration(
-                          color: barColor, // colorLabels の色をそのまま使用
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(4.0),
-                            topRight: Radius.circular(4.0),
+                flex: 4, // グラフエリアの幅を少し広く調整 (例: flex 4)
+                child: Container(
+                  height: availableHeight,
+                  child: LayoutBuilder(
+                    builder: (context, chartConstraints) {
+                      final double chartDiameter = min(chartConstraints.maxWidth, chartConstraints.maxHeight);
+                      if (chartDiameter <= 10) {
+                        return const SizedBox.shrink();
+                      }
+                      return Center(
+                        child: SizedBox(
+                          width: chartDiameter,
+                          height: chartDiameter,
+                          child: CustomPaint(
+                            painter: PieChartPainter(
+                              colorDurations: displayColorDurations,
+                              totalDuration: displayTotalSessionDuration,
+                              colorMapping: colorLabels,
+                              backgroundColor: chartBackgroundColor,
+                              holeRadiusRatio: 0.95,
+                            ),
                           ),
                         ),
-                      ),
-                      if (canShowLabelAndPadding) ...[
-                        const SizedBox(height: paddingBelowBar),
-                        Text(
-                          labelName,
-                          style: TextStyle(
-                            fontSize: labelTextSize,
-                            // 修正: ログがある場合のラベルテキストの色。textTheme の標準的な色を使用。
-                            color: textTheme.bodySmall?.color ?? colorScheme.onSurface,
-                          ),
-                          textAlign: TextAlign.center,
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                      ]
-                    ],
+                      );
+                    },
                   ),
                 ),
-              ),
-            );
-          });
-        }
-
-        List<Widget> gridLines = [];
-        // --- 罫線描画ロジック ---
-        double gridLineDrawingAreaHeight;
-        double gridLineBottomOffsetAnchor;
-
-        if (canShowLabelAndPadding) {
-            gridLineDrawingAreaHeight = stackAreaHeight - nonBarElementsHeight - safetyBuffer;
-            gridLineBottomOffsetAnchor = nonBarElementsHeight;
-        } else {
-            gridLineDrawingAreaHeight = stackAreaHeight - safetyBuffer;
-            gridLineBottomOffsetAnchor = 0;
-        }
-        gridLineDrawingAreaHeight = max(0, gridLineDrawingAreaHeight);
-
-        if (gridLineDrawingAreaHeight < 4.0 && stackAreaHeight > safetyBuffer + 4.0) {
-             gridLineDrawingAreaHeight = 4.0;
-        }
-
-        if (gridLineDrawingAreaHeight > 1.0) {
-            for (int i = 0; i <= 4; i++) {
-                double relativeOffset = (gridLineDrawingAreaHeight / 4) * i;
-                double bottomOffset = gridLineBottomOffsetAnchor + relativeOffset;
-
-                if (bottomOffset <= stackAreaHeight - safetyBuffer + 0.5 && bottomOffset >= gridLineBottomOffsetAnchor -0.5) {
-                    gridLines.add(
-                        Positioned(
-                        bottom: bottomOffset,
-                        left: 0,
-                        right: 0,
-                        child: Container(
-                            height: 1.0,
-                            // 修正: 罫線の色。テーマの区切り線色 (dividerColor) や薄いグレーを使用。
-                            color: theme.dividerColor.withAlpha((255 * 0.5).round()), // ★修正: withOpacity(0.5) から変更 (alpha: 128)
-                            // color: Colors.grey[300], // 修正前: ハードコードされたグレー
-                        ),
-                        ),
-                    );
-                }
-            }
-        }
-
-        return Container(
-          margin: EdgeInsets.symmetric(horizontal: 16.0, vertical: widgetVerticalMargin / 2),
-          padding: EdgeInsets.all(containerInternalVerticalPadding / 2),
-          child: Stack(
-            children: [
-              ...gridLines,
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: chartItems,
               ),
             ],
           ),
         );
       },
     );
+  }
+}
+
+class PieChartPainter extends CustomPainter {
+  final Map<String, Duration> colorDurations;
+  final Duration totalDuration;
+  final Map<String, Color> colorMapping;
+  final Color backgroundColor;
+  final double holeRadiusRatio;
+
+  PieChartPainter({
+    required this.colorDurations,
+    required this.totalDuration,
+    required this.colorMapping,
+    required this.backgroundColor,
+    this.holeRadiusRatio = 0.9,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (totalDuration.inSeconds == 0) return;
+
+    double startAngle = -pi / 2;
+
+    final Paint sectionPaint = Paint()..style = PaintingStyle.fill;
+    final Rect rect = Rect.fromLTWH(0, 0, size.width, size.height);
+
+    colorDurations.forEach((labelName, duration) {
+      if (duration.inSeconds > 0) {
+        final double sweepAngle = (duration.inSeconds / totalDuration.inSeconds) * 2 * pi;
+        sectionPaint.color = colorMapping[labelName] ?? Colors.grey;
+        canvas.drawArc(rect, startAngle, sweepAngle, true, sectionPaint);
+        startAngle += sweepAngle;
+      }
+    });
+
+    if (holeRadiusRatio > 0.0 && holeRadiusRatio < 1.0) {
+      final double holeRadius = (size.width / 2) * holeRadiusRatio;
+      if (holeRadius > 0) {
+        final Paint holePaint = Paint()..color = backgroundColor;
+        canvas.drawCircle(Offset(size.width / 2, size.height / 2), holeRadius, holePaint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant PieChartPainter oldDelegate) {
+    return oldDelegate.colorDurations != colorDurations ||
+           oldDelegate.totalDuration != totalDuration ||
+           oldDelegate.colorMapping != colorMapping ||
+           oldDelegate.backgroundColor != backgroundColor ||
+           oldDelegate.holeRadiusRatio != holeRadiusRatio;
   }
 }

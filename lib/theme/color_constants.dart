@@ -1,15 +1,33 @@
 // lib/theme/color_constants.dart
-
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart'; // SchedulerBinding を使用するためにインポート
+import '../theme.dart'; // MaterialTheme とそのスキーム定義をインポート
 
-// ログのカテゴリ別ラベルカラー (既存の定義)
-// こちらも新しいパレットに合わせて調整するか、既存のままにするか検討が必要です。
-// 例として、一部新しいパレットの色を参照するように変更しています。
-const Map<String, Color> colorLabels = {
-  'dark': Color.fromARGB(255, 102, 93, 112), // デフォルトの色をパレットのParagraphに
-  // 以下は従来の定義例 (必要に応じて調整)
-  'fire': Color.fromARGB(255, 206, 26, 26), // より明確な赤など
-  'water': Color.fromARGB(255, 88, 107, 177),
-  'Earth': Color.fromARGB(255, 69, 134, 92),
-  'Light': Color.fromARGB(255, 146, 125, 2),
-};
+Map<String, Color> get colorLabels {
+  // 現在のプラットフォームの明るさを取得
+  // 注意: これはアプリがテーマモードをオーバーライドしている場合には追従しません。
+  // アプリのテーマがシステム追従であれば、これで問題ありません。
+  final Brightness platformBrightness = SchedulerBinding.instance.platformDispatcher.platformBrightness;
+
+  if (platformBrightness == Brightness.dark) {
+    // ダークモード時の色定義
+    final darkScheme = MaterialTheme.darkScheme(); // lib/theme.dart からダークスキームを取得
+    return {
+      'dark': darkScheme.outline,
+      'fire': darkScheme.error,
+      'water': darkScheme.primary,
+      'Earth': darkScheme.tertiaryContainer,
+      'Light': darkScheme.secondary,
+    };
+  } else {
+    // ライトモード時の色定義
+    final lightScheme = MaterialTheme.lightScheme();
+    return {
+      'dark': lightScheme.outline,
+      'fire': lightScheme.error,
+      'water': lightScheme.primary,
+      'Earth': lightScheme.tertiaryContainer,
+      'Light': lightScheme.secondary,
+    };
+  }
+}
