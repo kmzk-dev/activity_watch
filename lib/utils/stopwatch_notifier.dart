@@ -46,12 +46,12 @@ class StopwatchNotifier {
       ),
     );
     _isServiceInitialized = true;
-    print('StopwatchNotifier: Service initialized with eventAction repeat(1000).');
+    // print('StopwatchNotifier: Service initialized with eventAction repeat(1000).');
   }
 
   static Future<void> _ensureNotificationIsOngoing(String title, String text) async {
     if (!_isServiceInitialized || kIsWeb) {
-      print('StopwatchNotifier._ensureNotificationIsOngoing: Not initialized or web. Text: $text');
+      // print('StopwatchNotifier._ensureNotificationIsOngoing: Not initialized or web. Text: $text');
       return;
     }
 
@@ -60,34 +60,34 @@ class StopwatchNotifier {
 
     try {
       bool isCurrentlyRunning = await FlutterForegroundTask.isRunningService;
-      print('StopwatchNotifier._ensureNotificationIsOngoing: isRunningService = $isCurrentlyRunning. Attempting to show/update with Text: $notificationText (Original: $text)');
+      // print('StopwatchNotifier._ensureNotificationIsOngoing: isRunningService = $isCurrentlyRunning. Attempting to show/update with Text: $notificationText (Original: $text)');
 
       if (isCurrentlyRunning) {
-        print('StopwatchNotifier._ensureNotificationIsOngoing: Service is running, calling updateService. Text: $notificationText');
+        // print('StopwatchNotifier._ensureNotificationIsOngoing: Service is running, calling updateService. Text: $notificationText');
         await FlutterForegroundTask.updateService(
           notificationTitle: title,
           notificationText: notificationText, // フォーマットされた文字列を使用
         );
-        print('StopwatchNotifier._ensureNotificationIsOngoing: updateService CALLED. Text: $notificationText');
+        // print('StopwatchNotifier._ensureNotificationIsOngoing: updateService CALLED. Text: $notificationText');
       } else {
-        print('StopwatchNotifier._ensureNotificationIsOngoing: Service NOT running, calling startService. Text: $notificationText');
+        // print('StopwatchNotifier._ensureNotificationIsOngoing: Service NOT running, calling startService. Text: $notificationText');
         await FlutterForegroundTask.startService(
           notificationTitle: title,
           notificationText: notificationText, // フォーマットされた文字列を使用
         );
-        print('StopwatchNotifier._ensureNotificationIsOngoing: startService CALLED. Text: $notificationText');
+        // print('StopwatchNotifier._ensureNotificationIsOngoing: startService CALLED. Text: $notificationText');
       }
       _isNotificationCurrentlyShown = true;
     } catch (e) {
-      print('StopwatchNotifier: Error in _ensureNotificationIsOngoing with Text $notificationText (Original: $text): $e');
+      // print('StopwatchNotifier: Error in _ensureNotificationIsOngoing with Text $notificationText (Original: $text): $e');
       _isNotificationCurrentlyShown = false;
     }
   }
 
   static Future<void> startNotification(String elapsedTime) async {
-    print('StopwatchNotifier.startNotification called with elapsedTime: $elapsedTime');
+    // print('StopwatchNotifier.startNotification called with elapsedTime: $elapsedTime');
     if (!_isServiceInitialized || kIsWeb) {
-      print('StopwatchNotifier.startNotification: Not initialized or web.');
+      // print('StopwatchNotifier.startNotification: Not initialized or web.');
       return;
     }
     await _ensureNotificationIsOngoing('ストップウォッチ実行中', elapsedTime);
@@ -105,37 +105,37 @@ class StopwatchNotifier {
         await _ensureNotificationIsOngoing('ストップウォッチ実行中', elapsedTime);
     } else {
         if (_isNotificationCurrentlyShown) {
-            print('StopwatchNotifier.updateNotification: Service NOT running, but _isNotificationCurrentlyShown was true. Resetting flag and attempting to stop (just in case).');
+            // print('StopwatchNotifier.updateNotification: Service NOT running, but _isNotificationCurrentlyShown was true. Resetting flag and attempting to stop (just in case).');
             await stopNotification();
         }
     }
   }
 
   static Future<void> stopNotification() async {
-    print('StopwatchNotifier.stopNotification called.');
+    // print('StopwatchNotifier.stopNotification called.');
     if (!_isServiceInitialized || kIsWeb) {
       if (!kIsWeb && !_isServiceInitialized) {
-        print('StopwatchNotifier.stopNotification: Not initialized.');
+        // print('StopwatchNotifier.stopNotification: Not initialized.');
       }
       if (_isNotificationCurrentlyShown) _isNotificationCurrentlyShown = false;
       return;
     }
 
     bool isRunning = await FlutterForegroundTask.isRunningService;
-    print('StopwatchNotifier.stopNotification: isRunningService = $isRunning. Current _isNotificationCurrentlyShown = $_isNotificationCurrentlyShown');
+    // print('StopwatchNotifier.stopNotification: isRunningService = $isRunning. Current _isNotificationCurrentlyShown = $_isNotificationCurrentlyShown');
 
     if (isRunning) {
       try {
-        print('StopwatchNotifier.stopNotification: Calling FlutterForegroundTask.stopService()');
+        // print('StopwatchNotifier.stopNotification: Calling FlutterForegroundTask.stopService()');
         await FlutterForegroundTask.stopService();
         _isNotificationCurrentlyShown = false;
-        print('StopwatchNotifier.stopNotification: Notification service stopped successfully via stopService().');
+        // print('StopwatchNotifier.stopNotification: Notification service stopped successfully via stopService().');
       } catch (e) {
-        print('StopwatchNotifier.stopNotification: Error stopping notification service: $e');
+        // print('StopwatchNotifier.stopNotification: Error stopping notification service: $e');
         _isNotificationCurrentlyShown = false;
       }
     } else {
-      print('StopwatchNotifier.stopNotification: Service was not running according to isRunningService. Ensuring flag is false.');
+      // print('StopwatchNotifier.stopNotification: Service was not running according to isRunningService. Ensuring flag is false.');
       _isNotificationCurrentlyShown = false;
     }
   }

@@ -39,7 +39,7 @@ Future<void> saveSession({
           .toList();
     } catch (e) {
       // JSONデコードエラーの場合はリストを初期化
-      print('Error decoding existing sessions: $e'); // エラーログ
+      // print('Error decoding existing sessions: $e'); // エラーログ
       savedSessions = []; 
     }
   }

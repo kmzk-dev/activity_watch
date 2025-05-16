@@ -13,6 +13,7 @@ import '../screens/widgets/log_card_list.dart';
 import '../screens/widgets/log_color_summary_chart.dart';
 import '../theme/color_constants.dart'; // colorLabels のために必要
 import '../utils/string_utils.dart'; // katakanaToHiragana のために必要
+import '../theme/scale.dart';
 
 class SessionDetailsScreen extends StatefulWidget {
   final SavedLogSession session;
@@ -228,7 +229,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colorScheme = theme.colorScheme;
     final TextTheme textTheme = theme.textTheme;
-    final IconThemeData iconTheme = theme.iconTheme;
+    // final IconThemeData iconTheme = theme.iconTheme;
 
     final String formattedDate =
         DateFormat('yyyy/MM/dd HH:mm').format(_editableSession.saveDate);
@@ -300,7 +301,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                         padding: const EdgeInsets.all(12.0),
                         width: double.infinity,
                         decoration: BoxDecoration( // コメント欄の装飾（任意）
-                          color: colorScheme.surfaceVariant.withOpacity(0.3),
+                          color: colorScheme.surfaceContainerHighest.withAlpha(Scale.alpha30), // withOpacity(0.3),
                           borderRadius: BorderRadius.circular(8.0),
                           // border: Border.all(color: colorScheme.outline.withOpacity(0.5))
                         ),

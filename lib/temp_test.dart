@@ -6,13 +6,13 @@ import 'package:activity_watch/utils/log_data_converter.dart'; // あなたの l
 void main() {
   // colorLabels が空でないことを確認 (実際のプロジェクトでは初期化されているはず)
   if (colorLabels.isEmpty) {
-    print("警告: colorLabelsが空です。テストが正しく動作しない可能性があります。");
+    // print("警告: colorLabelsが空です。テストが正しく動作しない可能性があります。");
     // ダミーデータを設定するか、実際の初期化を待つ
     // (例) colorLabels['デフォルト'] = Colors.grey;
     // return;
   }
 
-  print("--- convertBackgroundTaskMapToLogEntry テスト ---");
+  // print("--- convertBackgroundTaskMapToLogEntry テスト ---");
 
   // 正常なMapデータ
   final sampleLapMap = {
@@ -22,8 +22,8 @@ void main() {
     'memo': 'テストラップ1',
     'colorLabelName': colorLabels.keys.isNotEmpty ? colorLabels.keys.last : 'デフォルト', // colorLabelsが空の場合のフォールバック
   };
-  final entry1 = convertBackgroundTaskMapToLogEntry(sampleLapMap);
-  print('正常系テスト1: memo="${entry1.memo}", elapsedTime="${entry1.elapsedTime}", color="${entry1.colorLabelName}", actualStartTime="${entry1.actualSessionStartTime}"');
+  // final entry1 = convertBackgroundTaskMapToLogEntry(sampleLapMap);
+  // print('正常系テスト1: memo="${entry1.memo}", elapsedTime="${entry1.elapsedTime}", color="${entry1.colorLabelName}", actualStartTime="${entry1.actualSessionStartTime}"');
   //期待値の確認（目視）
 
   // memoやcolorLabelNameがnullまたは欠損
@@ -33,8 +33,8 @@ void main() {
     'endTimeFormatted': '00:03:00',
     // memo と colorLabelName が欠損
   };
-  final entryMissing = convertBackgroundTaskMapToLogEntry(sampleLapMapMissing);
-  print('欠損テスト: memo="${entryMissing.memo}", elapsedTime="${entryMissing.elapsedTime}", color="${entryMissing.colorLabelName}", actualStartTime="${entryMissing.actualSessionStartTime}"');
+  // final entryMissing = convertBackgroundTaskMapToLogEntry(sampleLapMapMissing);
+  // print('欠損テスト: memo="${entryMissing.memo}", elapsedTime="${entryMissing.elapsedTime}", color="${entryMissing.colorLabelName}", actualStartTime="${entryMissing.actualSessionStartTime}"');
   //期待値の確認（目視）
 
   // calculateDuration()の確認 (例: 10秒のラップ)
@@ -46,11 +46,11 @@ void main() {
     'memo': '10秒ラップ',
     'colorLabelName': colorLabels.keys.isNotEmpty ? colorLabels.keys.first : 'デフォルト',
   };
-  final entryDuration = convertBackgroundTaskMapToLogEntry(durationTestMap);
-  print('Durationテスト: memo="${entryDuration.memo}", duration="${entryDuration.duration}", elapsedTime="${entryDuration.elapsedTime}"');
-  //期待値の確認（目視）
+  // final entryDuration = convertBackgroundTaskMapToLogEntry(durationTestMap);
+  // print('Durationテスト: memo="${entryDuration.memo}", duration="${entryDuration.duration}", elapsedTime="${entryDuration.elapsedTime}"');
+  // 期待値の確認（目視）
 
-  print("\n--- convertBackgroundTaskLapListToLogEntries テスト ---");
+  // print("\n--- convertBackgroundTaskLapListToLogEntries テスト ---");
   final List<Map<String, dynamic>> lapMapListRaw = [
     sampleLapMap,
     sampleLapMapMissing,
@@ -64,15 +64,15 @@ void main() {
     }
   ];
   final List<LogEntry> logEntries = convertBackgroundTaskLapListToLogEntries(lapMapListRaw);
-  print('リスト変換テスト: ${logEntries.length}件のLogEntryに変換されました。');
+  // print('リスト変換テスト: ${logEntries.length}件のLogEntryに変換されました。');
   for (var i = 0; i < logEntries.length; i++) {
-    final log = logEntries[i];
-    print('  Entry $i: memo="${log.memo}", elapsedTime="${log.elapsedTime}", color="${log.colorLabelName}"');
+    // final log = logEntries[i];
+    // print('  Entry $i: memo="${log.memo}", elapsedTime="${log.elapsedTime}", color="${log.colorLabelName}"');
   }
-  //期待値の確認（目視）
+  // 期待値の確認（目視）
 
-  final List<dynamic> emptyLapMapListRaw = [];
-  final List<LogEntry> emptyLogEntries = convertBackgroundTaskLapListToLogEntries(emptyLapMapListRaw);
-  print('空リスト変換テスト: ${emptyLogEntries.length}件のLogEntryに変換されました。');
-  //期待値の確認（目視）
+  // final List<dynamic> emptyLapMapListRaw = [];
+  // final List<LogEntry> emptyLogEntries = convertBackgroundTaskLapListToLogEntries(emptyLapMapListRaw);
+  // print('空リスト変換テスト: ${emptyLogEntries.length}件のLogEntryに変換されました。');
+  // 期待値の確認（目視）
 }

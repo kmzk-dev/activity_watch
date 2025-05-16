@@ -4,9 +4,10 @@ import 'screens/saved_sessions_screen.dart'; // 保存済みセッション画�
 import 'screens/stopwatch_screen.dart'; // ストップウォッチ画面をインポート
 import 'util.dart';
 import 'theme.dart';
-import 'package:flutter_foreground_task/flutter_foreground_task.dart'; // インポート済み
-//import 'services/foreground_task_handler.dart';
+// import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+// import 'services/foreground_task_handler.dart';
 import 'utils/stopwatch_notifier.dart'; // 追加
+import 'theme/scale.dart'; // スケールをインポート
 
 // アプリケーションのエントリーポイント
 void main() {
@@ -103,7 +104,7 @@ class _AppShellState extends State<AppShell> {
         currentIndex: _selectedIndex, // 現在選択されているアイテムのインデックス
         onTap: _onItemTapped, // アイテムがタップされたときのコールバック
         selectedItemColor: theme.colorScheme.primary, // 選択されたアイテムの色をテーマのプライマリカラーに設定
-        unselectedItemColor: theme.colorScheme.onSurface.withOpacity(0.6), // 非選択アイテムの色を少し薄く設定
+        unselectedItemColor: theme.colorScheme.onSurface.withAlpha(Scale.alpha60), // withOpacity(0.6), // 非選択アイテムの色を少し薄く設定
         showUnselectedLabels: false, // 非選択のラベルも表示する
         showSelectedLabels: true, // 選択されたラベルはデフォルトで表示されます
       ),

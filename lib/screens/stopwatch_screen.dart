@@ -129,7 +129,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    print("StopwatchScreen: AppLifecycleState changed to $state");
+    // print("StopwatchScreen: AppLifecycleState changed to $state");
 
     if (!_isRunning) {
       if (state == AppLifecycleState.resumed) {
@@ -139,10 +139,10 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     }
 
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive || state == AppLifecycleState.hidden) {
-      print("StopwatchScreen: App is not resumed. Updating notification.");
+      // print("StopwatchScreen: App is not resumed. Updating notification.");
       StopwatchNotifier.updateNotification(_elapsedTime);
     } else if (state == AppLifecycleState.resumed) {
-      print("StopwatchScreen: App resumed. Syncing time.");
+      // print("StopwatchScreen: App resumed. Syncing time.");
       if (_currentActualSessionStartTime != null) {
         final Duration resumedElapsedTime = DateTime.now().difference(_currentActualSessionStartTime!);
         if (mounted) {
@@ -176,7 +176,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     _uiAndNotificationTimer = Timer.periodic(const Duration(milliseconds: 10), (timer) {
       if (!_isRunning || _currentActualSessionStartTime == null) {
         timer.cancel();
-        print("StopwatchScreen: UI and Notification Timer stopped.");
+        // print("StopwatchScreen: UI and Notification Timer stopped.");
         return;
       }
       final newElapsedTime = formatDisplayTime(DateTime.now().difference(_currentActualSessionStartTime!));
@@ -191,7 +191,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
         _notificationUpdateCounter = 0;
       }
     });
-    print("StopwatchScreen: UI and Notification Timer started.");
+    // print("StopwatchScreen: UI and Notification Timer started.");
   }
 
   void _handleStartStopwatch() {
@@ -213,7 +213,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     });
     _startUiAndNotificationTimer();
     StopwatchNotifier.startNotification(_elapsedTime);
-    print("StopwatchScreen: Stopwatch started.");
+    // print("StopwatchScreen: Stopwatch started.");
   }
 
   void _handleStopStopwatch() async {
@@ -244,7 +244,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     });
 
     StopwatchNotifier.stopNotification();
-    print("StopwatchScreen: Stopwatch stopped.");
+    // print("StopwatchScreen: Stopwatch stopped.");
     FocusScope.of(context).unfocus();
 
     _carouselAnimationController.forward();
@@ -288,7 +288,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
             duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
       }
     });
-    print("StopwatchScreen: Lap recorded, carousel animated.");
+    // print("StopwatchScreen: Lap recorded, carousel animated.");
   }
 
   Future<void> _showEditLogDialog(int pageViewIndex) async {
@@ -411,12 +411,12 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       canPop: !_isRunning,
       onPopInvokedWithResult: (bool didPop, dynamic result) {
         if (didPop) {
-          print("StopwatchScreen: Pop allowed and occurred. Result: $result");
+          // print("StopwatchScreen: Pop allowed and occurred. Result: $result");
           StopwatchNotifier.stopNotification();
           return;
         }
         if (_isRunning) {
-          print("StopwatchScreen: Pop prevented while running, minimizing app.");
+          // print("StopwatchScreen: Pop prevented while running, minimizing app.");
           FlutterForegroundTask.minimizeApp(); // 必要に応じてインポート
           StopwatchNotifier.startNotification(_elapsedTime);
         }

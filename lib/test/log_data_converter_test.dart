@@ -21,10 +21,10 @@ void main() {
     // 実際のプロジェクトの colorLabels の内容に合わせてください。
     if (!colorLabels.containsKey('dark')) {
       // 実際のテストではエラーにするか、テスト用セットアップを行う
-      print("警告: テストに必要な 'dark' キーが colorLabels に存在しません。");
+      // print("警告: テストに必要な 'dark' キーが colorLabels に存在しません。");
     }
     if (!colorLabels.containsKey('fire')) {
-      print("警告: テストに必要な 'fire' キーが colorLabels に存在しません。");
+      // print("警告: テストに必要な 'fire' キーが colorLabels に存在しません。");
     }
   });
 

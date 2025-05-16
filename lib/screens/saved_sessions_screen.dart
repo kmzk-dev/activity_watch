@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import '../models/saved_log_session.dart';
 import 'session_details_screen.dart';
+import '../theme/scale.dart';
 
 class SavedSessionsScreen extends StatefulWidget {
   const SavedSessionsScreen({super.key});
@@ -254,7 +255,7 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
                       final String formattedDate = DateFormat('yyyy/MM/dd HH:mm').format(session.saveDate);
 
                       final Color? cardBackgroundColor = isSelected
-                          ? colorScheme.primary.withOpacity(0.1) // テーマのプライマリカラーを薄く
+                          ? colorScheme.primary.withAlpha(Scale.alpha12)// withOpacity(0.1) // テーマのプライマリカラーを薄く
                           : theme.cardTheme.color; // テーマのカード背景色
 
                       Widget subtitleWidget = Row(
@@ -263,13 +264,13 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
                           Icon(
                             Icons.calendar_month_outlined,
                             size: 14,
-                            color: textTheme.bodySmall?.color?.withOpacity(0.7), // サブタイトルのテキスト色を少し薄く
+                            color: textTheme.bodySmall?.color?.withAlpha(Scale.alpha70) // withOpacity(0.7), // サブタイトルのテキスト色を少し薄く
                           ),
                           const SizedBox(width: 4),
                           Text(
                             formattedDate,
                             style: textTheme.bodySmall?.copyWith(
-                              color: textTheme.bodySmall?.color?.withOpacity(0.7), // サブタイトルのテキスト色を少し薄く
+                              color: textTheme.bodySmall?.color?.withAlpha(Scale.alpha70) // withOpacity(0.7), // サブタイトルのテキスト色を少し薄く
                             ),
                           ),
                         ],
@@ -307,7 +308,7 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
                             leading: _isSelectionMode
                                 ? Icon(
                                     isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
-                                    color: isSelected ? colorScheme.primary : iconTheme.color?.withOpacity(0.6),
+                                    color: isSelected ? colorScheme.primary : iconTheme.color?.withAlpha(Scale.alpha60) // withOpacity(0.6),
                                   )
                                 : null,
                             title: Text(session.title, style: textTheme.titleMedium), // テーマのテキストスタイル

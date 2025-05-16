@@ -22,7 +22,7 @@ class MyTaskHandler extends TaskHandler {
     _lapLogs = [];
     _lastLapEndTime = _actualSessionStartTime;
 
-    print('MyTaskHandler: onStart - Service started. Actual start time: $_actualSessionStartTime, Lap logs initialized.');
+    // print('MyTaskHandler: onStart - Service started. Actual start time: $_actualSessionStartTime, Lap logs initialized.');
     _startSendingTimeUpdates(); // 時間更新を開始
   }
 
@@ -58,7 +58,7 @@ class MyTaskHandler extends TaskHandler {
   @override
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
     _timer?.cancel(); // タイマーを停止
-    print('MyTaskHandler: onDestroy at $timestamp (isTimeout: $isTimeout)');
+    // print('MyTaskHandler: onDestroy at $timestamp (isTimeout: $isTimeout)');
     // _actualSessionStartTime = null; // 状態は維持する可能性も（アプリ再開時のため）
     // _lapLogs はクリアしない（UIが最後に取得できるように）
     // _lastLapEndTime = null;
@@ -69,7 +69,7 @@ class MyTaskHandler extends TaskHandler {
 
   void _recordLapInternal(bool isFinalLap) {
     if (_actualSessionStartTime == null || _lastLapEndTime == null) {
-      print('MyTaskHandler: Cannot record lap, service not properly started.');
+      // print('MyTaskHandler: Cannot record lap, service not properly started.');
       return;
     }
 
@@ -89,19 +89,19 @@ class MyTaskHandler extends TaskHandler {
     _lapLogs.add(newLapLog);
     _lastLapEndTime = currentLapTime; // 次のラップのために終了時刻を更新 (最終ラップでない場合)
 
-    print('MyTaskHandler: Lap recorded (isFinal: $isFinalLap). New lap: $newLapLog');
-    print('MyTaskHandler: All lap logs count: ${_lapLogs.length}');
+    // print('MyTaskHandler: Lap recorded (isFinal: $isFinalLap). New lap: $newLapLog');
+    // print('MyTaskHandler: All lap logs count: ${_lapLogs.length}');
 
     FlutterForegroundTask.sendDataToMain({'lapLogsUpdate': List<Map<String, dynamic>>.from(_lapLogs)});
-    print('MyTaskHandler: Sent lapLogsUpdate to UI.');
+    // print('MyTaskHandler: Sent lapLogsUpdate to UI.');
   }
 
 
   @override
   void onReceiveData(Object data) {
-    print('MyTaskHandler: Received data from UI: $data');
+    // print('MyTaskHandler: Received data from UI: $data');
     if (data is! Map<String, dynamic>) {
-      print('MyTaskHandler: Received data is not a Map. Ignoring.');
+      // print('MyTaskHandler: Received data is not a Map. Ignoring.');
       return;
     }
 
@@ -129,7 +129,7 @@ class MyTaskHandler extends TaskHandler {
         'serviceStopped': true, // UIにサービス停止を明確に伝える
         'isServiceCurrentlyRunning': false,
       });
-      print('MyTaskHandler: Recorded final lap, sent final state, and stopping service.');
+      // print('MyTaskHandler: Recorded final lap, sent final state, and stopping service.');
       FlutterForegroundTask.stopService(); // サービスを停止
     }
     else if (action == 'editLap') {
@@ -139,7 +139,7 @@ class MyTaskHandler extends TaskHandler {
       final String? updatedColorLabelName = actionData['updatedColorLabelName'] as String?;
 
       if (originalStartTime == null || originalEndTime == null || updatedMemo == null || updatedColorLabelName == null) {
-        print('MyTaskHandler: editLap - Missing required data for editing. Ignoring.');
+        // print('MyTaskHandler: editLap - Missing required data for editing. Ignoring.');
         return;
       }
 
@@ -155,11 +155,11 @@ class MyTaskHandler extends TaskHandler {
       if (lapIndex != -1) {
         _lapLogs[lapIndex]['memo'] = updatedMemo;
         _lapLogs[lapIndex]['colorLabelName'] = updatedColorLabelName;
-        print('MyTaskHandler: Lap edited. Index: $lapIndex, Updated data: ${_lapLogs[lapIndex]}');
+        // print('MyTaskHandler: Lap edited. Index: $lapIndex, Updated data: ${_lapLogs[lapIndex]}');
         FlutterForegroundTask.sendDataToMain({'lapLogsUpdate': List<Map<String, dynamic>>.from(_lapLogs)});
-        print('MyTaskHandler: Sent lapLogsUpdate to UI after editing lap.');
+        // print('MyTaskHandler: Sent lapLogsUpdate to UI after editing lap.');
       } else {
-        print('MyTaskHandler: editLap - Lap to edit not found with startTime: $originalStartTime, endTime: $originalEndTime');
+        // print('MyTaskHandler: editLap - Lap to edit not found with startTime: $originalStartTime, endTime: $originalEndTime');
       }
     } else if (action == 'requestFullState') {
        final String currentFormattedTime = _actualSessionStartTime != null
@@ -170,16 +170,16 @@ class MyTaskHandler extends TaskHandler {
         'lapLogsUpdate': List<Map<String, dynamic>>.from(_lapLogs),
         'isServiceCurrentlyRunning': _actualSessionStartTime != null,
       });
-      print('MyTaskHandler: Sent full state (time and laps) to UI upon request.');
+      // print('MyTaskHandler: Sent full state (time and laps) to UI upon request.');
     }
     else {
-      print('MyTaskHandler: Unknown action received: $action. Ignoring.');
+      // print('MyTaskHandler: Unknown action received: $action. Ignoring.');
     }
   }
 
   @override
   void onNotificationButtonPressed(String id) {
-    print('MyTaskHandler: Notification button pressed: $id');
+    // print('MyTaskHandler: Notification button pressed: $id');
     if (id == 'STOP_ACTION') { // 通知ボタンのIDに応じて処理
         onReceiveData({'action': 'stopAndRecordFinalLap'});
     } else if (id == 'LAP_ACTION') {
@@ -189,13 +189,13 @@ class MyTaskHandler extends TaskHandler {
 
   @override
   void onNotificationPressed() {
-    print('MyTaskHandler: Notification pressed');
+    // print('MyTaskHandler: Notification pressed');
     FlutterForegroundTask.launchApp("/");
   }
 
   @override
   void onNotificationDismissed() {
-    print('MyTaskHandler: Notification dismissed by user. Stopping service.');
+    // print('MyTaskHandler: Notification dismissed by user. Stopping service.');
     // 通知が消されたらサービスを停止する（アプリの仕様による）
     // FlutterForegroundTask.stopService(); // これを呼ぶと onDestroy がトリガーされる
   }
