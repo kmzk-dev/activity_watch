@@ -236,10 +236,17 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
     return Scaffold(
       appBar: AppBar(
         // AppBarのタイトルを削除
-        // title: Text(_editableSession.title, style: textTheme.titleLarge?.copyWith(fontSize: 18)),
+        title: Text(
+          formattedDate,
+          style: textTheme.titleSmall
+          ),
+        backgroundColor: colorScheme.surface, // AppBarの背景色を固定
+        elevation: 0, // 通常時の影を消す場合 (任意)
+        scrolledUnderElevation: 0.0, // スクロール時の影 (色の変化の原因の一つ) をなくす
+        surfaceTintColor: colorScheme.surface,
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit),
+            icon: const Icon(Icons.edit_square),
             tooltip: 'セッション情報を編集',
             onPressed: _showEditSessionDialog,
           ),
@@ -263,22 +270,21 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // 2. 日付
-                    Padding(
-                      padding: const EdgeInsets.only(top: 16.0), // グラフとの間に少しスペース
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.calendar_month_outlined,
-                            size: 16,
-                            color: iconTheme.color?.withOpacity(0.7),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(formattedDate, style: textTheme.titleSmall),
-                        ],
-                      ),
-                    ),
+                    // Padding(
+                    //   padding: const EdgeInsets.only(top: 16.0), // グラフとの間に少しスペース
+                    //   child: Row(
+                    //     children: [
+                    //       Icon(
+                    //         Icons.calendar_month_outlined,
+                    //         size: 16,
+                    //         color: iconTheme.color?.withOpacity(0.7),
+                    //       ),
+                    //       const SizedBox(width: 6),
+                    //       Text(formattedDate, style: textTheme.titleSmall),
+                    //     ],
+                    //   ),
+                    // ),
                     const SizedBox(height: 8.0), // 日付とタイトルの間のスペース
-
                     // 3. タイトル
                     Text(
                       _editableSession.title,

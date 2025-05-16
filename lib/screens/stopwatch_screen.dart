@@ -23,10 +23,6 @@ import './widgets/timer_display.dart';
 import './widgets/stopwatch_floating_action_button.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
-
-// flutter_foreground_task は直接このファイルで使われていないのでコメントアウト
-// import 'package:flutter_foreground_task/flutter_foreground_task.dart';
-
 class StopwatchScreenWidget extends StatefulWidget {
   const StopwatchScreenWidget({super.key});
 
@@ -55,6 +51,8 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   static const double fabWidgetHeight = 120.0;
   static const double pageIndicatorHeight = 24.0;
 
+  
+
   bool? _hasVibrator;
 
   static const int _lapVibrationDuration = 100;
@@ -75,7 +73,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
 
     _carouselAnimationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 250),
+      duration: const Duration(milliseconds: 200),
     );
 
     _carouselFadeAnimation = CurvedAnimation(
@@ -84,12 +82,12 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     );
 
     _carouselSlideAnimation = Tween<Offset>(
-      begin: const Offset(1.25, 0.0),
+      begin: const Offset(-1.25, 0.0),
       end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _carouselAnimationController,
-      //curve: Curves.easeOutCubic,
-      curve: Curves.easeOutBack,
+      curve: Curves.easeOutCubic,
+      //curve: Curves.easeOutBack,
     ));
 
     _carouselAnimationController.value = 1.0;
@@ -351,7 +349,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('「${sessionData['title']}」としてセッションを保存しました。', style: TextStyle(color: colorScheme.onSurface)),
-                    backgroundColor: colorScheme.surfaceVariant),
+                    backgroundColor: colorScheme.surfaceContainerHighest),
         );
       }
     }
@@ -377,6 +375,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     final displayLogsForCarousel = _getDisplayLogs();
     final bool isKeyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
     final double graphHeightPercentage = 0.25;
+    final ColorScheme colorScheme = theme.colorScheme;
 
     Widget mainContent = SafeArea(
       top: false, bottom: false,
@@ -384,20 +383,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
         child: Column(
           children: <Widget>[
             TimerDisplay(elapsedTime: _elapsedTime),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Tooltip(message: '現在のログを保存',
-                           child: IconButton(icon: const Icon(Icons.save_alt_outlined, size: 28),
-                                            onPressed: (_logs.isNotEmpty && !_isRunning) ? _showSaveSessionDialog : null)),
-                  Tooltip(message: 'ログを共有 (CSV)',
-                           child: IconButton(icon: const Icon(Icons.share_outlined, size: 28),
-                                            onPressed: _logs.isNotEmpty ? () => shareLogsAsCsvText(context, _logs) : null)),
-                ],
-              ),
-            ),
+            const SizedBox(height: 8.0),
             if (!isKeyboardVisible)
               SizedBox(height: MediaQuery.of(context).size.height * graphHeightPercentage,
                         child: LogColorSummaryChart(logs: _logs))
@@ -448,12 +434,21 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
         },
         child: Scaffold(
           appBar: AppBar(
-            actions: <Widget>[
+              backgroundColor: colorScheme.surface, // AppBarの背景色を固定
+              elevation: 0, // 通常時の影を消す場合 (任意)
+              scrolledUnderElevation: 0.0, // スクロール時の影 (色の変化の原因の一つ) をなくす
+              surfaceTintColor: colorScheme.surface,
+              actions: <Widget>[
               IconButton(
                 icon: const Icon(Icons.settings_outlined),
                 tooltip: '設定',
                 onPressed: _navigateToSettings,
               ),
+              IconButton(
+                icon: const Icon(Icons.share_outlined),
+                tooltip: 'シェア',
+                onPressed: _logs.isNotEmpty ? () => shareLogsAsCsvText(context, _logs) : null, 
+              )
             ],
           ),
           body: mainContent,
@@ -461,6 +456,8 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
           floatingActionButton: StopwatchFloatingActionButton(
             isRunning: _isRunning, onStartStopwatch: _handleStartStopwatch,
             onStopStopwatch: _handleStopStopwatch, onLapRecord: _handleLapRecord,
+            onSaveSession: _showSaveSessionDialog,
+            canSaveSession: _logs.isNotEmpty && !_isRunning, 
           ),
         ),
       ),

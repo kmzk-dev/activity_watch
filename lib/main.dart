@@ -96,7 +96,7 @@ class _AppShellState extends State<AppShell> {
           ),
           // 履歴タブのアイテム
           BottomNavigationBarItem(
-            icon: Icon(Icons.history), // 履歴アイコン
+            icon: Icon(Icons.list), // 履歴アイコン
             label: '履歴', // ラベル
           ),
         ],
@@ -104,8 +104,8 @@ class _AppShellState extends State<AppShell> {
         onTap: _onItemTapped, // アイテムがタップされたときのコールバック
         selectedItemColor: theme.colorScheme.primary, // 選択されたアイテムの色をテーマのプライマリカラーに設定
         unselectedItemColor: theme.colorScheme.onSurface.withOpacity(0.6), // 非選択アイテムの色を少し薄く設定
-        showUnselectedLabels: true, // 非選択のラベルも表示する
-        // showSelectedLabels: true, // 選択されたラベルはデフォルトで表示されます
+        showUnselectedLabels: false, // 非選択のラベルも表示する
+        showSelectedLabels: true, // 選択されたラベルはデフォルトで表示されます
       ),
     );
   }

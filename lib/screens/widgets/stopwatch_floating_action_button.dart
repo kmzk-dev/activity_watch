@@ -6,6 +6,8 @@ class StopwatchFloatingActionButton extends StatelessWidget {
   final VoidCallback? onStartStopwatch;
   final VoidCallback? onStopStopwatch;
   final VoidCallback? onLapRecord;
+  final VoidCallback? onSaveSession; // <-- 追加: 保存処理のコールバック
+  final bool canSaveSession;      // <-- 追加: 保存ボタンの有効状態
 
 
   const StopwatchFloatingActionButton({
@@ -14,6 +16,8 @@ class StopwatchFloatingActionButton extends StatelessWidget {
     this.onStartStopwatch,
     this.onStopStopwatch,
     this.onLapRecord,
+    this.onSaveSession, // <-- 追加
+    required this.canSaveSession, // <-- 追加
   });
 
   @override
@@ -41,18 +45,18 @@ class StopwatchFloatingActionButton extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
-          // ダミー:レイアウトのために空のSizedBoxを使用
+          // 左ボタン (セッション保存)
           SizedBox(
             width: smallFabDimension,
             height: smallFabDimension,
             child: FloatingActionButton(
-              heroTag: 'invisibleFab_separated',
-              onPressed: null,
-              backgroundColor: invisibleColor,
-              foregroundColor: invisibleColor,
-              elevation: 0,
+              heroTag: 'saveSession_separated',
+              onPressed: canSaveSession ? onSaveSession : null,
+              backgroundColor: canSaveSession ? colorScheme.secondaryContainer : invisibleColor,
+              foregroundColor: canSaveSession ? colorScheme.onSecondaryContainer : invisibleColor,
+              elevation: canSaveSession ? 2 : 0,
               shape: const CircleBorder(),
-              child: Icon(Icons.settings_outlined, color: invisibleColor, size: smallIconSize),
+              child: Icon(Icons.save_alt_outlined, size: smallIconSize),
             ),
           ),
           // 中央ボタン (開始/停止)

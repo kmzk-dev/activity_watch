@@ -195,19 +195,19 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
         tooltip: '選択をすべて解除',
         onPressed: _clearSelection,
       );
-      titleWidget = Text('${_selectedSessionIds.length} 件選択中', style: textTheme.titleLarge); // AppBarのタイトルスタイル
+      titleWidget = Text('${_selectedSessionIds.length} item selected', style: textTheme.titleLarge); // AppBarのタイトルスタイル
       actionsWidgets = null;
     } else {
       leadingWidget = null;
-      titleWidget = const Text('保存したセッション'); // 通常時のタイトル
-      actionsWidgets = [
-        IconButton(
-          icon: const Icon(Icons.refresh),
-          // iconTheme.color が適用される
-          tooltip: 'リストを更新',
-          onPressed: () => _loadSavedSessions(force: true),
-        ),
-      ];
+      titleWidget = const Text('History'); // 通常時のタイトル
+      // actionsWidgets = [
+      //   IconButton(
+      //     icon: const Icon(Icons.refresh),
+      //     // iconTheme.color が適用される
+      //     tooltip: 'リストを更新',
+      //     onPressed: () => _loadSavedSessions(force: true),
+      //   ),
+      // ];
     }
 
     return VisibilityDetector(
@@ -223,6 +223,11 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
       child: Scaffold(
         appBar: AppBar(
           // AppBarのスタイルは app_theme.dart の appBarTheme から適用される想定
+          backgroundColor: colorScheme.surface, // AppBarの背景色を固定
+          elevation: 0, // 通常時の影を消す場合 (任意)
+          scrolledUnderElevation: 0.0, // スクロール時の影 (色の変化の原因の一つ) をなくす
+          surfaceTintColor: colorScheme.surface,
+          //
           leading: leadingWidget,
           title: titleWidget,
           actions: actionsWidgets,
@@ -235,7 +240,7 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Text(
-                        '保存されたセッションはありません。',
+                        'No items',
                         style: textTheme.titleMedium, // より適切なテキストスタイルに変更
                         textAlign: TextAlign.center,
                       ),
@@ -318,6 +323,7 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
                 label: const Text('選択項目を削除'),
                 icon: const Icon(Icons.delete_sweep),
                 backgroundColor: colorScheme.error, // テーマのエラーカラーを使用
+                foregroundColor: colorScheme.onError, // foregroundColor は FABTheme から取得されるか、colorScheme.onError を使用
                 // foregroundColor は FABTheme から取得されるか、colorScheme.onError を使用
               )
             : null,

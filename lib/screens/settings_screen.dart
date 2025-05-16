@@ -135,7 +135,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('サジェスト設定'), // titleTextStyle は appBarTheme から
+        title: const Text('Setting'), // titleTextStyle は appBarTheme から
+        backgroundColor: colorScheme.surface, // AppBarの背景色を固定
+        elevation: 0, // 通常時の影を消す場合 (任意)
+        scrolledUnderElevation: 0.0, // スクロール時の影 (色の変化の原因の一つ) をなくす
+        surfaceTintColor: colorScheme.surface,
       ),
       body: SafeArea(
         child: _isLoading
@@ -153,8 +157,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           child: TextField(
                             controller: _suggestionAddController,
                             decoration: const InputDecoration(
-                              labelText: '新しいサジェスチョン',
-                              hintText: '例: 会議',
+                              labelText: 'New Suggestion',
+                              hintText: 'example: 会議',
                             ),
                             onSubmitted: (_) => _addSuggestion(),
                           ),
@@ -162,14 +166,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         const SizedBox(width: 8),
                         ElevatedButton(
                           onPressed: _addSuggestion,
-                          child: const Text('追加'),
+                          child: const Text('ADD'),
                         ),
                       ],
                     ),
                     const SizedBox(height: 20),
                     Expanded(
                       child: _suggestions.isEmpty
-                          ? Center(child: Text('データがありません', style: textTheme.bodyMedium))
+                          ? Center(child: Text('Create New Suggestions', style: textTheme.bodyMedium))
                           : ListView.builder(
                               itemCount: _suggestions.length,
                               itemBuilder: (context, index) {

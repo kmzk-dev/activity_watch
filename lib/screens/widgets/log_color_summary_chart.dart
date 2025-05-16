@@ -164,7 +164,7 @@ class LogColorSummaryChart extends StatelessWidget {
                               totalDuration: displayTotalSessionDuration,
                               colorMapping: colorLabels,
                               backgroundColor: chartBackgroundColor,
-                              holeRadiusRatio: 0.95,
+                              holeRadiusRatio: 0.90,
                             ),
                           ),
                         ),
