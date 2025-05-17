@@ -52,8 +52,8 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
 
   bool? _hasVibrator;
 
-  static const int _lapVibrationDuration = 100;
-  static const int _stopVibrationDuration = 300;
+  static const int _lapVibrationDuration = 50;
+  static const int _stopVibrationDuration = 200;
 
   int _notificationUpdateCounter = 0;
   static const int _notificationUpdateIntervalTicks = 100;
