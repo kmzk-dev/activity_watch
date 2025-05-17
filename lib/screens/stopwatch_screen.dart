@@ -1,4 +1,3 @@
-// lib/screens/stopwatch_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,7 +29,7 @@ class StopwatchScreenWidget extends StatefulWidget {
   State<StopwatchScreenWidget> createState() => _StopwatchScreenWidgetState();
 }
 
-class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with WidgetsBindingObserver, SingleTickerProviderStateMixin {
+class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with WidgetsBindingObserver, TickerProviderStateMixin { // TickerProviderStateMixin を追加
   final Stopwatch _stopwatch = Stopwatch();
   Timer? _uiAndNotificationTimer;
   bool _isRunning = false;
@@ -51,8 +50,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   static const double fabWidgetHeight = 120.0;
   static const double pageIndicatorHeight = 24.0;
 
-  
-
   bool? _hasVibrator;
 
   static const int _lapVibrationDuration = 100;
@@ -64,6 +61,14 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   late AnimationController _carouselAnimationController;
   late Animation<double> _carouselFadeAnimation;
   late Animation<Offset> _carouselSlideAnimation;
+
+  // 長押し停止機能のための状態変数
+  // Timer? _longPressTimer; // AnimationControllerで代替するため削除
+  late AnimationController _longPressProgressController; // 長押しプログレス用
+  bool _isStoppingWithLongPress = false;
+  static const Duration _longPressDuration = Duration(milliseconds: 500);
+  bool _ignoreTapAfterLongPressStop = false;
+
 
   @override
   void initState() {
@@ -87,10 +92,45 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     ).animate(CurvedAnimation(
       parent: _carouselAnimationController,
       curve: Curves.easeOutCubic,
-      //curve: Curves.easeOutBack,
     ));
-
     _carouselAnimationController.value = 1.0;
+
+    // 長押しプログレス用 AnimationController の初期化
+    _longPressProgressController = AnimationController(
+      vsync: this, // TickerProviderStateMixin が必要
+      duration: _longPressDuration,
+    );
+
+    _longPressProgressController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        // アニメーション完了時 (2秒経過時)
+        if (_isStoppingWithLongPress && _isRunning && mounted) {
+          _handleStopStopwatch(); // 実際の停止処理を実行
+          if (mounted) {
+            setState(() {
+              _ignoreTapAfterLongPressStop = true; // 長押しで停止したので、次のタップを無視
+              _isStoppingWithLongPress = false; // 長押し状態を解除
+            });
+          }
+        } else {
+           // アニメーションは完了したが、何らかの理由で停止処理を実行しない場合
+           if(mounted){
+            setState(() {
+              _isStoppingWithLongPress = false;
+            });
+           }
+        }
+        _longPressProgressController.reset(); // アニメーションをリセット
+      } else if (status == AnimationStatus.dismissed) {
+        // アニメーションが途中でキャンセルされたりリセットされた場合
+        if (mounted) {
+          setState(() {
+            _isStoppingWithLongPress = false;
+          });
+        }
+      }
+    });
+
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -108,9 +148,11 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   @override
   void dispose() {
     _carouselAnimationController.dispose();
+    _longPressProgressController.dispose(); // AnimationController を破棄
     WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     _uiAndNotificationTimer?.cancel();
+    // _longPressTimer?.cancel(); // 削除済み
     _stopwatch.stop();
     if (_isRunning) {
       StopwatchNotifier.stopNotification();
@@ -129,8 +171,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    // print("StopwatchScreen: AppLifecycleState changed to $state");
-
     if (!_isRunning) {
       if (state == AppLifecycleState.resumed) {
          StopwatchNotifier.stopNotification();
@@ -139,10 +179,8 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     }
 
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive || state == AppLifecycleState.hidden) {
-      // print("StopwatchScreen: App is not resumed. Updating notification.");
       StopwatchNotifier.updateNotification(_elapsedTime);
     } else if (state == AppLifecycleState.resumed) {
-      // print("StopwatchScreen: App resumed. Syncing time.");
       if (_currentActualSessionStartTime != null) {
         final Duration resumedElapsedTime = DateTime.now().difference(_currentActualSessionStartTime!);
         if (mounted) {
@@ -176,7 +214,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     _uiAndNotificationTimer = Timer.periodic(const Duration(milliseconds: 10), (timer) {
       if (!_isRunning || _currentActualSessionStartTime == null) {
         timer.cancel();
-        // print("StopwatchScreen: UI and Notification Timer stopped.");
         return;
       }
       final newElapsedTime = formatDisplayTime(DateTime.now().difference(_currentActualSessionStartTime!));
@@ -191,11 +228,21 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
         _notificationUpdateCounter = 0;
       }
     });
-    // print("StopwatchScreen: UI and Notification Timer started.");
   }
 
   void _handleStartStopwatch() {
+    if (_ignoreTapAfterLongPressStop) {
+      if (mounted) {
+        setState(() {
+          _ignoreTapAfterLongPressStop = false;
+        });
+      }
+      return;
+    }
+
     _carouselAnimationController.value = 1.0;
+    _isStoppingWithLongPress = false;
+    _longPressProgressController.reset(); // 開始時にプログレスコントローラーもリセット
 
     setState(() {
       _logs.clear();
@@ -213,53 +260,83 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
     });
     _startUiAndNotificationTimer();
     StopwatchNotifier.startNotification(_elapsedTime);
-    // print("StopwatchScreen: Stopwatch started.");
   }
 
-  void _handleStopStopwatch() async {
+  void _handleStopButtonPress() {
+    if (!_isRunning) return;
+
+    if (mounted) {
+      setState(() {
+        _isStoppingWithLongPress = true;
+      });
+    }
+    _longPressProgressController.forward(from: 0.0); // アニメーション開始
+  }
+
+  void _handleStopButtonRelease() {
+    if (!_isRunning) return;
+
+    if (_longPressProgressController.isAnimating) {
+      _longPressProgressController.stop(); // アニメーションを途中で停止
+      _longPressProgressController.reset(); // リセットしてプログレスを0に戻す
+      if (mounted) {
+        setState(() {
+          _isStoppingWithLongPress = false;
+        });
+      }
+    } else if (_isStoppingWithLongPress) {
+      // アニメーションは完了したが、何らかの理由で isStoppingWithLongPress が true のままの場合
+      // (例えば、addStatusListener の completed 内で false にする前に指を離した場合など)
+      if (mounted) {
+        setState(() {
+          _isStoppingWithLongPress = false;
+        });
+      }
+    }
+  }
+
+  void _handleStopStopwatch() {
     if (!_isRunning || _currentActualSessionStartTime == null) return;
+
     if (_hasVibrator == true) Vibration.vibrate(duration: _stopVibrationDuration);
 
     _uiAndNotificationTimer?.cancel();
     final Duration finalElapsedDuration = DateTime.now().difference(_currentActualSessionStartTime!);
-    _isRunning = false;
+
+    if(mounted){
+        setState(() {
+            _elapsedTime = formatDisplayTime(finalElapsedDuration);
+            _isRunning = false;
+            // _ignoreTapAfterLongPressStop は addStatusListener で設定済みの想定
+            // _isStoppingWithLongPress も addStatusListener で設定済みの想定
+        });
+    }
     _stopwatch.stop();
 
-    await _carouselAnimationController.reverse();
-
-    setState(() {
-      _elapsedTime = formatDisplayTime(finalElapsedDuration);
-      final String currentTimeForLog = formatLogTime(finalElapsedDuration);
-      final String startTime = _logs.isEmpty ? '00:00:00' : _logs.last.endTime;
-      final newLog = LogEntry(
-        actualSessionStartTime: _currentActualSessionStartTime!,
-        startTime: startTime,
-        endTime: currentTimeForLog,
-        memo: '',
-        colorLabelName: colorLabels.keys.first,
-      );
-      newLog.calculateDuration();
-      _logs.add(newLog);
-      _currentPage = 0;
-    });
-
     StopwatchNotifier.stopNotification();
-    // print("StopwatchScreen: Stopwatch stopped.");
     FocusScope.of(context).unfocus();
-
-    _carouselAnimationController.forward();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_pageController.hasClients && _getDisplayLogs().isNotEmpty) {
-        _pageController.animateToPage(0,
-            duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
-      }
-    });
   }
 
   void _handleLapRecord() async {
     if (!_isRunning || _currentActualSessionStartTime == null) return;
     if (_hasVibrator == true) Vibration.vibrate(duration: _lapVibrationDuration);
+
+    if (_ignoreTapAfterLongPressStop && mounted) {
+      setState(() {
+        _ignoreTapAfterLongPressStop = false;
+      });
+    }
+    // ラップ記録時は長押しプログレスをキャンセル
+    if (_longPressProgressController.isAnimating) {
+      _longPressProgressController.stop();
+      _longPressProgressController.reset();
+    }
+    if (_isStoppingWithLongPress && mounted) {
+      setState(() {
+        _isStoppingWithLongPress = false;
+      });
+    }
+
 
     await _carouselAnimationController.reverse();
 
@@ -288,7 +365,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
             duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
       }
     });
-    // print("StopwatchScreen: Lap recorded, carousel animated.");
   }
 
   Future<void> _showEditLogDialog(int pageViewIndex) async {
@@ -308,7 +384,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       availableColorLabels: colorLabels,
     );
     if (result != null && mounted) {
-      // 編集時はアニメーションなしで直接データを更新
       setState(() {
         _logs[actualLogIndex].memo = result['memo'] ?? currentLog.memo;
         _logs[actualLogIndex].colorLabelName = result['colorLabel'] ?? currentLog.colorLabelName;
@@ -360,6 +435,22 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
   }
 
   void _navigateToSettings() {
+    if (_ignoreTapAfterLongPressStop && mounted) {
+      setState(() {
+        _ignoreTapAfterLongPressStop = false;
+      });
+    }
+    // 設定画面遷移時にも長押しプログレスをキャンセル
+    if (_longPressProgressController.isAnimating) {
+      _longPressProgressController.stop();
+      _longPressProgressController.reset();
+    }
+     if (_isStoppingWithLongPress && mounted) {
+      setState(() {
+        _isStoppingWithLongPress = false;
+      });
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const SettingsScreen()),
@@ -411,13 +502,11 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       canPop: !_isRunning,
       onPopInvokedWithResult: (bool didPop, dynamic result) {
         if (didPop) {
-          // print("StopwatchScreen: Pop allowed and occurred. Result: $result");
           StopwatchNotifier.stopNotification();
           return;
         }
         if (_isRunning) {
-          // print("StopwatchScreen: Pop prevented while running, minimizing app.");
-          FlutterForegroundTask.minimizeApp(); // 必要に応じてインポート
+          FlutterForegroundTask.minimizeApp();
           StopwatchNotifier.startNotification(_elapsedTime);
         }
       },
@@ -434,9 +523,9 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
         },
         child: Scaffold(
           appBar: AppBar(
-              backgroundColor: colorScheme.surface, // AppBarの背景色を固定
-              elevation: 0, // 通常時の影を消す場合 (任意)
-              scrolledUnderElevation: 0.0, // スクロール時の影 (色の変化の原因の一つ) をなくす
+              backgroundColor: colorScheme.surface,
+              elevation: 0,
+              scrolledUnderElevation: 0.0,
               surfaceTintColor: colorScheme.surface,
               actions: <Widget>[
               IconButton(
@@ -447,17 +536,27 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
               IconButton(
                 icon: const Icon(Icons.share_outlined),
                 tooltip: 'シェア',
-                onPressed: _logs.isNotEmpty ? () => shareLogsAsCsvText(context, _logs) : null, 
+                onPressed: _logs.isNotEmpty ? () => shareLogsAsCsvText(context, _logs) : null,
               )
             ],
           ),
           body: mainContent,
           floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-          floatingActionButton: StopwatchFloatingActionButton(
-            isRunning: _isRunning, onStartStopwatch: _handleStartStopwatch,
-            onStopStopwatch: _handleStopStopwatch, onLapRecord: _handleLapRecord,
-            onSaveSession: _showSaveSessionDialog,
-            canSaveSession: _logs.isNotEmpty && !_isRunning, 
+          floatingActionButton: AnimatedBuilder( // プログレスの更新を検知して再描画
+            animation: _longPressProgressController,
+            builder: (context, child) {
+              return StopwatchFloatingActionButton(
+                isRunning: _isRunning,
+                isStoppingWithLongPress: _isStoppingWithLongPress,
+                longPressProgress: _longPressProgressController.value, // プログレス値を渡す
+                onStartStopwatch: _handleStartStopwatch,
+                onStopButtonPress: _handleStopButtonPress,
+                onStopButtonRelease: _handleStopButtonRelease,
+                onLapRecord: _handleLapRecord,
+                onSaveSession: _showSaveSessionDialog,
+                canSaveSession: _logs.isNotEmpty && !_isRunning,
+              );
+            },
           ),
         ),
       ),
