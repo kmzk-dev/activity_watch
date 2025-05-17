@@ -26,28 +26,18 @@ Widget _buildSharedLogInputFields({
           // print('Autocomplete optionsBuilder triggered. Query: "$query"');
           // print('Available commentSuggestions: $commentSuggestions');
 
-          if (query.isEmpty) {
+          if (query.length >= 1 && query.length <= 3) {
             // 入力が空白の場合、全てのサジェスト候補を表示する
-            return commentSuggestions;
-          } else if (query.length <= 2) {
-            // 入力が1文字または2文字の場合、フィルタリングして表示
-            final String normalizedQuery =
-                katakanaToHiraganaConverter(query.toLowerCase());
-            // print('Normalized query for 1 or 2 chars: "$normalizedQuery"');
-
-            final Iterable<String> filteredSuggestions =
-                commentSuggestions.where((String option) {
-              final String normalizedOption =
-                  katakanaToHiraganaConverter(option.toLowerCase());
-              final bool isMatch =
-                  normalizedOption.startsWith(normalizedQuery); // 前方一致でフィルタリング
+            final String normalizedQuery = katakanaToHiraganaConverter(query.toLowerCase());
+            final Iterable<String> filteredSuggestions = commentSuggestions.where((String option) {
+              final String normalizedOption = katakanaToHiraganaConverter(option.toLowerCase());
+              final bool isMatch = normalizedOption.startsWith(normalizedQuery); // 前方一致でフィルタリング
               // print('Comparing: NormalizedOption "$normalizedOption" with NormalizedQuery "$normalizedQuery" -> Match: $isMatch');
               return isMatch;
             });
-            // print('Filtered suggestions: ${filteredSuggestions.toList()}');
             return filteredSuggestions;
           } else {
-            // 入力が3文字以上の場合、サジェストを表示しない
+            // サジェストを表示しない
             // print('Query is 3 or more characters, returning empty suggestions.');
             return const Iterable<String>.empty();
           }
