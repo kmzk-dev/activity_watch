@@ -90,7 +90,7 @@ class StopwatchNotifier {
       // print('StopwatchNotifier.startNotification: Not initialized or web.');
       return;
     }
-    await _ensureNotificationIsOngoing('ストップウォッチ実行中', elapsedTime);
+    await _ensureNotificationIsOngoing('アクティビティを記録中', elapsedTime);
   }
 
   static Future<void> updateNotification(String elapsedTime) async {
@@ -102,7 +102,7 @@ class StopwatchNotifier {
     // print('StopwatchNotifier.updateNotification: isRunningService = $isRunning. Current _isNotificationCurrentlyShown = $_isNotificationCurrentlyShown');
 
     if (isRunning) {
-        await _ensureNotificationIsOngoing('ストップウォッチ実行中', elapsedTime);
+        await _ensureNotificationIsOngoing('アクティビティを記録中', elapsedTime);
     } else {
         if (_isNotificationCurrentlyShown) {
             // print('StopwatchNotifier.updateNotification: Service NOT running, but _isNotificationCurrentlyShown was true. Resetting flag and attempting to stop (just in case).');

@@ -31,7 +31,7 @@ class ActivityWatchApp extends StatelessWidget {
       title: 'Activity Watch',
       theme: brightness == Brightness.light ? theme.light() : theme.dark(),
       home: const AppShell(),
-      debugShowCheckedModeBanner: false,
+      // debugShowCheckedModeBanner: false,
     );
   }
 }

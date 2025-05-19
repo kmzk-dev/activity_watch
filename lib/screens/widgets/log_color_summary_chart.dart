@@ -13,6 +13,7 @@ class LogColorSummaryChart extends StatelessWidget {
   });
 
   Map<String, Duration> _calculateColorLabelDurations() {
+    // ... (既存のコード)
     final Map<String, Duration> colorDurations = {};
     for (var labelName in colorLabels.keys) {
       colorDurations[labelName] = Duration.zero;
@@ -32,6 +33,7 @@ class LogColorSummaryChart extends StatelessWidget {
   }
 
   Duration _calculateTotalSessionDuration() {
+    // ... (既存のコード)
     if (logs.isEmpty) {
       return Duration.zero;
     }
@@ -55,6 +57,7 @@ class LogColorSummaryChart extends StatelessWidget {
     Duration actualTotalSessionDuration = _calculateTotalSessionDuration();
 
     if (logs.isEmpty || actualTotalSessionDuration.inSeconds == 0) {
+      // ... (既存のデータなしの場合の処理)
       if (colorLabels.isEmpty) {
         return Center(
           child: Padding(
@@ -88,7 +91,8 @@ class LogColorSummaryChart extends StatelessWidget {
         .toList();
 
     if (displayTotalSessionDuration.inSeconds == 0 || (colorLabels.isNotEmpty && validEntries.isEmpty)) {
-      return Center(
+      // ... (既存の表示データなしの場合の処理)
+       return Center(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Text(
@@ -108,30 +112,46 @@ class LogColorSummaryChart extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
-              // 左側: 凡例 (色付きの四角のみ)
+              // 左側: 凡例 (カラーアイコンと割合)
               Expanded(
-                flex: 1, // 凡例エリアの幅を少し狭く調整 (例: flex 1)
+                // flex: 1 から flex: 2 に変更して少し幅を広げる (割合表示のため)
+                flex: 2,
                 child: Container(
                   height: availableHeight,
                   child: ListView.builder(
                     itemCount: validEntries.length,
                     itemBuilder: (context, index) {
                       final entry = validEntries[index];
-                      final String labelName = entry.key; // labelName は色の取得に必要
+                      final String labelName = entry.key;
+                      final Duration duration = entry.value;
                       final Color color = colorLabels[labelName] ?? Colors.grey;
 
+                      // 割合を計算
+                      final double percentage = displayTotalSessionDuration.inSeconds > 0
+                          ? (duration.inSeconds / displayTotalSessionDuration.inSeconds) * 100
+                          : 0.0;
+                      // 小数点以下1桁で表示 (例: 25.3%)
+                      final String percentageText = '${percentage.toStringAsFixed(1)}%';
+
                       return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 3.0), // アイテム間の上下の余白
-                        child: Row( // 中央揃えのため、Rowでラップすることも検討
-                          mainAxisAlignment: MainAxisAlignment.center, // 四角を中央に
+                        padding: const EdgeInsets.symmetric(vertical: 4.0), // 少し余白を調整
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.start, // 左寄せに変更
                           children: [
                             Container(
-                              width: 12, // 四角の幅
-                              height: 12, // 四角の高さ
+                              width: 12,
+                              height: 12,
                               decoration: BoxDecoration(
                                 color: color,
-                                shape: BoxShape.rectangle, // または BoxShape.circle
-                                // borderRadius: BorderRadius.circular(2.0), // 四角の場合
+                                shape: BoxShape.rectangle,
+                              ),
+                            ),
+                            const SizedBox(width: 8), // アイコンとテキストの間のスペース
+                            Text(
+                              percentageText,
+                              style: textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurface,
+                                fontSize: 11, // フォントサイズを少し小さく調整
                               ),
                             ),
                           ],
@@ -141,15 +161,16 @@ class LogColorSummaryChart extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 8), // 凡例とグラフの間のスペースを少し調整
-
+              const SizedBox(width: 8),
               // 右側: 円グラフ
               Expanded(
-                flex: 4, // グラフエリアの幅を少し広く調整 (例: flex 4)
+                // flex: 4 から flex: 3 に変更してバランスを取る
+                flex: 3,
                 child: Container(
                   height: availableHeight,
                   child: LayoutBuilder(
                     builder: (context, chartConstraints) {
+                      // ... (既存の円グラフ描画ロジック)
                       final double chartDiameter = min(chartConstraints.maxWidth, chartConstraints.maxHeight);
                       if (chartDiameter <= 10) {
                         return const SizedBox.shrink();
@@ -182,6 +203,7 @@ class LogColorSummaryChart extends StatelessWidget {
 }
 
 class PieChartPainter extends CustomPainter {
+  // ... (PieChartPainter の既存のコードは変更なし)
   final Map<String, Duration> colorDurations;
   final Duration totalDuration;
   final Map<String, Color> colorMapping;

@@ -19,7 +19,10 @@ String formatLogTime(Duration duration) {
   final hours = duration.inHours;
   final minutes = duration.inMinutes.remainder(60);
   final seconds = duration.inSeconds.remainder(60);
-  return '${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}';
+  final milliseconds = (duration.inMilliseconds.remainder(1000) ~/ 10); // ミリ秒下2桁
+
+  return '${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}:${twoDigits(milliseconds)}';
+  // return '${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}';
 }
 
 // DateTime オブジェクトを YYYY-MM-DD HH:MM:SS 形式の文字列にフォーマットします。

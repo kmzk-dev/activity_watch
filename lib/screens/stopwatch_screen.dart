@@ -342,7 +342,7 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
 
     final Duration currentElapsedDuration = DateTime.now().difference(_currentActualSessionStartTime!);
     final String currentTimeForLog = formatLogTime(currentElapsedDuration);
-    final String startTime = _logs.isEmpty ? '00:00:00' : _logs.last.endTime;
+    final String startTime = _logs.isEmpty ? '00:00:00:00' : _logs.last.endTime;
     final newLog = LogEntry(
       actualSessionStartTime: _currentActualSessionStartTime!,
       startTime: startTime,

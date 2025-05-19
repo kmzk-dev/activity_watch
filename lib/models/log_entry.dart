@@ -23,8 +23,8 @@ class LogEntry {
 
   void calculateDuration() {
     try {
-      final startTimeDateTime = DateFormat('HH:mm:ss').parse(startTime);
-      final endTimeDateTime = DateFormat('HH:mm:ss').parse(endTime);
+      final startTimeDateTime = DateFormat('HH:mm:ss:SS').parse(startTime);
+      final endTimeDateTime = DateFormat('HH:mm:ss:SS').parse(endTime);
       duration = endTimeDateTime.difference(startTimeDateTime);
     } catch (e) {
       duration = null;
@@ -60,6 +60,7 @@ class LogEntry {
     final hours = duration!.inHours;
     final minutes = duration!.inMinutes.remainder(60);
     final seconds = duration!.inSeconds.remainder(60);
+
     return '${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}';
   }
 
