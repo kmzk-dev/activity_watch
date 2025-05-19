@@ -11,7 +11,7 @@ import '../utils/dialog_utils.dart';
 import '../utils/session_storage.dart';
 import '../screens/widgets/log_card_list.dart';
 import '../screens/widgets/log_color_summary_chart.dart';
-import '../theme/color_constants.dart'; // colorLabels のために必要
+import '../theme/color.dart'; // colorLabels のために必要
 import '../utils/string_utils.dart'; // katakanaToHiragana のために必要
 import '../theme/scale.dart';
 

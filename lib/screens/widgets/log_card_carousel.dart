@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import '../../models/log_entry.dart'; // LogEntryモデル
 import 'log_card_item.dart'; // LogCardItemウィジェット
-import '../../theme/color_constants.dart'; // colorLabels をインポート
+import '../../theme/color.dart'; // colorLabels をインポート
 
 class LogCardCarousel extends StatelessWidget {
   final List<LogEntry> logs;

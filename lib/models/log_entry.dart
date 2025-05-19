@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../theme/color_constants.dart';
+import '../theme/color.dart';
 
 // データモデル (LogEntry)
 class LogEntry {

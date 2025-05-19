@@ -1,23 +1,22 @@
 // main.dart
 import 'package:flutter/material.dart';
-import 'screens/saved_sessions_screen.dart'; // 保存済みセッション画面をインポート
-import 'screens/stopwatch_screen.dart'; // ストップウォッチ画面をインポート
 import 'util.dart';
 import 'theme.dart';
-// import 'package:flutter_foreground_task/flutter_foreground_task.dart';
-// import 'services/foreground_task_handler.dart';
-import 'utils/stopwatch_notifier.dart'; // 追加
-import 'theme/scale.dart'; // スケールをインポート
+// オプション
+import 'utils/stopwatch_notifier.dart';
+import 'theme/scale.dart';
+// 各画面
+import 'screens/saved_sessions_screen.dart';
+import 'screens/stopwatch_screen.dart';
 
-// アプリケーションのエントリーポイント
+// エントリーポイント
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  //FlutterForegroundTask.initCommunicationPort();
   StopwatchNotifier.initializeService();
   runApp(const ActivityWatchApp());
 }
 
-// ルートウィジェット
+// ルート
 class ActivityWatchApp extends StatelessWidget {
   const ActivityWatchApp({super.key});
 
@@ -25,18 +24,17 @@ class ActivityWatchApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final brightness = View.of(context).platformDispatcher.platformBrightness;
     TextTheme textTheme = createTextTheme(context, "Noto Sans JP", "Noto Sans JP");
-
     MaterialTheme theme = MaterialTheme(textTheme);
+    
     return MaterialApp(
       title: 'Activity Watch',
       theme: brightness == Brightness.light ? theme.light() : theme.dark(),
       home: const AppShell(),
-      // debugShowCheckedModeBanner: false,
     );
   }
 }
 
-// アプリケーションの主要な構造（シェル）を定義するStatefulWidget
+// アプリケーションの主要な構造（シェル）を定義
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
 
@@ -46,43 +44,30 @@ class AppShell extends StatefulWidget {
 
 // AppShellのStateクラス
 class _AppShellState extends State<AppShell> {
+
+  // BottomNavigationBarのルーティング処理
   int _selectedIndex = 0;
 
-  // 各タブに対応するウィジェットのリスト
-  // このリスト内のウィジェットはIndexedStackによって状態が保持される
+  // BottomNavigationBarのインデックス
   static const List<Widget> _widgetOptions = <Widget>[
-    StopwatchScreenWidget(), // 計測タブの画面
-    SavedSessionsScreen(), // 履歴タブの画面
+    StopwatchScreenWidget(), 
+    SavedSessionsScreen(),
   ];
   
   // BottomNavigationBarのアイテムがタップされたときの処理
   void _onItemTapped(int index) {
     setState(() {
-      _selectedIndex = index; // 選択されたタブのインデックスを更新
+      _selectedIndex = index;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context); // 現在のテーマを取得
+    final ThemeData theme = Theme.of(context);
 
     return Scaffold(
-      //appBar: AppBar(
-      //  title: const Text('Activity Watch'), // 通常のタイトル
-      //  actions: [
-          // クローンページへ遷移するためのテスト用ボタン
-      //    IconButton(
-      //      icon: const Icon(Icons.science_outlined, color: Colors.red), // 目立つように色を変更
-      //      tooltip: 'Test Foreground Service Screen',
-      //      onPressed: () {
-      //        Navigator.push(
-      //          context,
-      //          MaterialPageRoute(builder: (context) => const StopwatchScreenCloneWidget()),
-      //        );
-      //      },
-      //    ),
-      //  ],
-      //), 
+      // appBarは各画面で描画する
+      // bodyは各画面で描画する
       body: IndexedStack(
         index: _selectedIndex,
         children: _widgetOptions,
@@ -90,23 +75,21 @@ class _AppShellState extends State<AppShell> {
       // 下部のナビゲーションバー
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
-          // 計測タブのアイテム
           BottomNavigationBarItem(
-            icon: Icon(Icons.timer_outlined), // 計測アイコン
-            label: '計測', // ラベル
+            icon: Icon(Icons.timer_outlined),
+            label: '計測', 
           ),
-          // 履歴タブのアイテム
           BottomNavigationBarItem(
-            icon: Icon(Icons.list), // 履歴アイコン
-            label: '履歴', // ラベル
+            icon: Icon(Icons.list),
+            label: '履歴',
           ),
         ],
-        currentIndex: _selectedIndex, // 現在選択されているアイテムのインデックス
-        onTap: _onItemTapped, // アイテムがタップされたときのコールバック
-        selectedItemColor: theme.colorScheme.primary, // 選択されたアイテムの色をテーマのプライマリカラーに設定
-        unselectedItemColor: theme.colorScheme.onSurface.withAlpha(Scale.alpha60), // withOpacity(0.6), // 非選択アイテムの色を少し薄く設定
-        showUnselectedLabels: false, // 非選択のラベルも表示する
-        showSelectedLabels: true, // 選択されたラベルはデフォルトで表示されます
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        selectedItemColor: theme.colorScheme.primary,
+        unselectedItemColor: theme.colorScheme.onSurface.withAlpha(Scale.alpha60),
+        showUnselectedLabels: false,
+        showSelectedLabels: true,
       ),
     );
   }

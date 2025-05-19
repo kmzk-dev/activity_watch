@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
 import '../../models/log_entry.dart';
-import '../../theme/color_constants.dart';
+import '../../theme/color.dart';
 
 class LogColorSummaryChart extends StatelessWidget {
   final List<LogEntry> logs;
