@@ -26,6 +26,7 @@ Widget _buildSharedLogInputFields({
           // print('Autocomplete optionsBuilder triggered. Query: "$query"');
           // print('Available commentSuggestions: $commentSuggestions');
 
+          // ignore: prefer_is_empty
           if (query.length >= 1 && query.length <= 3) {
             // 入力が空白の場合、全てのサジェスト候補を表示する
             final String normalizedQuery = katakanaToHiraganaConverter(query.toLowerCase());

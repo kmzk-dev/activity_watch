@@ -53,14 +53,13 @@ Future<void> saveSession({
   await prefs.setString(savedSessionsKey, updatedSessionsJson);
 
   // 保存完了をユーザーに通知
-  if (ScaffoldMessenger.of(context).mounted) {
+  if (context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('「$title」としてセッションを保存しました。')),
     );
   }
 }
 
-// lib/utils/session_storage.dart (追加する関数のイメージ)
 Future<bool> updateSession({
   required BuildContext context, // SnackBar表示のため
   required SavedLogSession updatedSession, // 更新するセッションデータ

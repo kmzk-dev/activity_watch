@@ -421,12 +421,6 @@ class _StopwatchScreenWidgetState extends State<StopwatchScreenWidget> with Widg
       await saveSession(context: context, title: sessionData['title']!,
                         comment: sessionData['comment'], logs: _logs,
                         savedSessionsKey: _savedSessionsKey);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('「${sessionData['title']}」としてセッションを保存しました。', style: TextStyle(color: colorScheme.onSurface)),
-                    backgroundColor: colorScheme.surfaceContainerHighest),
-        );
-      }
     }
   }
 

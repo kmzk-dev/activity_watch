@@ -115,7 +115,11 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
         await _updateSessionInStorage();
       }
     }
-    FocusScope.of(context).unfocus();
+    if(mounted) {
+      // ダイアログが閉じた後にフォーカスを外す
+      FocusScope.of(context).unfocus();
+    }
+    // FocusScope.of(context).unfocus();
   }
 
   Future<void> _updateSessionInStorage() async {

@@ -113,6 +113,7 @@ class LogColorSummaryChart extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
               // 左側: 凡例 (カラーアイコンと割合)
+              // ignore_for_file: sized_box_for_whitespace
               Expanded(
                 // flex: 1 から flex: 2 に変更して少し幅を広げる (割合表示のため)
                 flex: 2,
