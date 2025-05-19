@@ -29,7 +29,7 @@ class StopwatchFloatingActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colorScheme = theme.colorScheme;
-    final Color invisibleColor = theme.scaffoldBackgroundColor;
+    final Color invisibleColor = Colors.transparent;
 
     const double largeFabDimension = 88.0;
     const double smallFabDimension = 56.0;
