@@ -14,9 +14,9 @@ Map<String, Color> get colorLabels {
     final darkScheme = MaterialTheme.darkScheme(); // lib/theme.dart からダークスキームを取得
     return {
       'dark': darkScheme.outline,
-      'fire': darkScheme.error,
-      'water': darkScheme.primary,
-      'Earth': darkScheme.tertiary,
+      'primary': darkScheme.primary,
+      'secondary': darkScheme.error,
+      'tertiary': darkScheme.tertiary,
       'Light': darkScheme.inverseSurface,
     };
   } else {
@@ -24,9 +24,9 @@ Map<String, Color> get colorLabels {
     final lightScheme = MaterialTheme.lightScheme();
     return {
       'dark': lightScheme.onSurfaceVariant,
-      'fire': lightScheme.error,
-      'water': lightScheme.primary,
-      'Earth': lightScheme.tertiary,
+      'primary': lightScheme.primary,
+      'secondary': lightScheme.error,
+      'tertiary': lightScheme.tertiary,
       'Light': lightScheme.secondaryFixedDim,
     };
   }
