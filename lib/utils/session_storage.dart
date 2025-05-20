@@ -94,11 +94,6 @@ Future<bool> updateSession({
     final String updatedSessionsJson =
         jsonEncode(allSessions.map((s) => s.toJson()).toList());
     await prefs.setString(savedSessionsKey, updatedSessionsJson);
-    // ignore: use_build_context_synchronously
-    if (!context.mounted) return true; // 保存は成功したが、contextがunmountされた場合
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('セッション情報を更新しました。')),
-    );
     return true;
   } else {
     // ignore: use_build_context_synchronously
