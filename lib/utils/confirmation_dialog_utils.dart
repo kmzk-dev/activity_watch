@@ -1,7 +1,7 @@
 // utils/dialog_utils.dart (または delete_dialog.dart)
 import 'package:flutter/material.dart';
 
-Future<bool?> showDeleteConfirmationDialog({
+Future<bool?> showConfirmationDialog({
   required BuildContext context,
   String title = '削除の確認', // デフォルトタイトル
   required String content,    // 削除対象に応じたメッセージ

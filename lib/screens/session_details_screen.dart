@@ -14,7 +14,7 @@ import '../screens/widgets/log_card_list.dart';
 import '../screens/widgets/log_color_summary_chart.dart';
 import '../utils/string_utils.dart';
 import '../utils/suggestion_utils.dart' as suggestion_utils;
-import '../utils/delete_dialog_utils.dart';
+import '../utils/confirmation_dialog_utils.dart';
 
 class SessionDetailsScreen extends StatefulWidget {
   final SavedLogSession session;
@@ -127,7 +127,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
   Future<void> _deleteCurrentSession() async {
     
     if (!mounted) return;
-    final bool? confirmDelete = await showDeleteConfirmationDialog(
+    final bool? confirmDelete = await showConfirmationDialog(
       context: context,
       title: 'セッション削除の確認',
       content: 'このセッションを本当に削除しますか？この操作は元に戻せません。',
